@@ -38,14 +38,14 @@ worktree-ios-dev-tool sim pick    # create + boot the per-worktree simulator
 Interactive output uses a clack-style step format:
 
 ```
-◇  Project: ios/Pulse.xcodeproj
+◇  Project: ios/App.xcodeproj
 ⠋  Fetching schemes...
-◇  Scheme: Pulse
+◇  Scheme: App
 │
 ◆  worktree-ios-dev/project.toml written
-│  project          = ios/Pulse.xcodeproj
-│  scheme           = Pulse
-│  simulator_prefix = Pulse
+│  project          = ios/App.xcodeproj
+│  scheme           = App
+│  simulator_prefix = App
 │
 ◆  Next: worktree-ios-dev-tool sim pick
 ```
@@ -80,7 +80,7 @@ Each sim's simctl device name is `<simulator_prefix>-<worktree_basename>-<label>
 
 | Verb | Description |
 |---|---|
-| `sim pick [<label>]` | Interactively pick + create + boot a simulator. `<label>` defaults to `default`. Errors if it already exists; use `sim recreate <label>` to replace. `--all-devices` disables the iPhone 17 Pro filter. |
+| `sim pick [<label>]` | Pick + create + boot a simulator. Interactive on TTY, auto-selects first device/runtime otherwise. Use `--device` / `--runtime` for explicit choice. `<label>` defaults to `default`. Errors if it already exists; use `sim recreate <label>` to replace. `--all-devices` disables the iPhone 17 Pro filter. |
 | `sim boot [<label>]` | Boot a configured sim. Single-sim setups can omit `<label>`; multi-sim must pass one or `--all`. |
 | `sim shutdown [<label>]` | Same shape as `boot` but shuts down. |
 | `sim list` | List this worktree's configured sims with simctl state. `--global` scans every `<simulator_prefix>-*` device on the machine, grouped by parsed worktree. |
@@ -99,7 +99,7 @@ Each sim's simctl device name is `<simulator_prefix>-<worktree_basename>-<label>
 | `run` | Build → install → launch on the chosen simulator. `--release`, `--sim <label>`. Prints bundle id on success. |
 | `clean` | `xcodebuild clean`. |
 | `wipe-derived` | Delete `worktree-ios-dev/derivedData`. Prompts unless `--yes`. |
-| `test-package <Name>` | `xcodebuild test` against `ios/Packages/<Name>/`. `--sim <label>`. |
+| `test-package <Name>` | `xcodebuild test` a local Swift package under `packages_root`. `--sim <label>`. |
 
 ## Global flags
 
@@ -123,12 +123,12 @@ For `proj init`, supply `--project` and `--scheme` explicitly — without them, 
 
 ```bash
 worktree-ios-dev-tool proj init \
-  --project ios/Pulse.xcodeproj \
-  --scheme Pulse \
+  --project ios/App.xcodeproj \
+  --scheme App \
   --yes
 ```
 
-`sim cleanup` and `sim prune` require `--yes` outside a TTY (they're destructive and refuse to act silently).
+`sim pick` auto-selects the first available device and latest runtime when stdin is not a TTY. Use `--device` / `--runtime` to pick explicitly (e.g. `--device "iPhone 17 Pro" --runtime "iOS 26.2"`); pass `--all-devices` if the default iPhone 17 Pro filter is too narrow. `sim cleanup` and `sim prune` require `--yes` outside a TTY (they're destructive and refuse to act silently).
 
 ## Cleanup and disk usage
 
@@ -161,7 +161,7 @@ Scheme discovery runs `xcodebuild -list -project ... -json`, which triggers Xcod
 Skip it entirely by passing `--scheme` directly:
 
 ```bash
-worktree-ios-dev-tool proj init --scheme Pulse
+worktree-ios-dev-tool proj init --scheme App
 ```
 
 ## Config files
@@ -174,10 +174,10 @@ worktree-ios-dev-tool proj init --scheme Pulse
 schema_version = 1
 
 [project]
-path             = "ios/Pulse.xcodeproj"
-scheme           = "Pulse"
+path             = "ios/App.xcodeproj"
+scheme           = "App"
 configuration    = "Debug"
-simulator_prefix = "Pulse"
+simulator_prefix = "App"
 
 [packages_root]
 path = "ios/Packages"
@@ -192,13 +192,13 @@ xcodebuild_flags = []
 schema_version = 1
 
 [simulators.default]
-name    = "Pulse-feat-auth-default"
+name    = "App-feat-auth-default"
 udid    = "ABCD-..."
 device  = "iPhone 17 Pro"
 runtime = "iOS 18.2"
 
 [simulators.peer]
-name    = "Pulse-feat-auth-peer"
+name    = "App-feat-auth-peer"
 udid    = "EFGH-..."
 device  = "iPhone 17 Pro"
 runtime = "iOS 18.2"

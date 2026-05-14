@@ -37,12 +37,18 @@ _FAKE_LIST = json.dumps({
 
 class ListDevicesTests(unittest.TestCase):
     def test_list_all_returns_flat(self) -> None:
-        with patch("worktree_ios_dev_tool.simulator.run_json", return_value=_FAKE_LIST):
+        with (
+            patch("worktree_ios_dev_tool.simulator.ensure_tooling"),
+            patch("worktree_ios_dev_tool.simulator.run_json", return_value=_FAKE_LIST),
+        ):
             devices = list_all_devices()
         self.assertEqual({d["udid"] for d in devices}, {"AAAA", "BBBB", "CCCC"})
 
     def test_list_by_prefix_filters_and_keeps_runtime(self) -> None:
-        with patch("worktree_ios_dev_tool.simulator.run_json", return_value=_FAKE_LIST):
+        with (
+            patch("worktree_ios_dev_tool.simulator.ensure_tooling"),
+            patch("worktree_ios_dev_tool.simulator.run_json", return_value=_FAKE_LIST),
+        ):
             devices = list_devices_by_prefix("Pulse")
         self.assertEqual({d["udid"] for d in devices}, {"AAAA", "BBBB"})
 
