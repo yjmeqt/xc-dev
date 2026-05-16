@@ -30,11 +30,51 @@ def find_xcodeprojs(root: Path) -> list[Path]:
     return results
 
 
-def fetch_schemes(xcodeproj: Path) -> list[str]:
-    """Return scheme names from xcodebuild -list -json. Returns [] on failure."""
+def find_xcworkspaces(root: Path) -> list[Path]:
+    """Find all *.xcworkspace directories under root, sorted.
+
+    Skips workspaces nested inside an ``.xcodeproj`` (Xcode places an internal
+    ``project.xcworkspace`` there that is not a user-buildable target).
+    """
+    results = []
+    for p in sorted(root.rglob("*.xcworkspace")):
+        rel_parts = p.relative_to(root).parts[:-1]
+        if any(part.endswith(".xcodeproj") for part in rel_parts):
+            continue
+        results.append(p)
+    return results
+
+
+def find_build_targets(root: Path) -> list[Path]:
+    """Discover buildable targets (``.xcworkspace`` + ``.xcodeproj``) under *root*.
+
+    When a workspace and a project share the same parent directory, the
+    project is dropped — Xcode/CocoaPods/Tuist convention is to drive builds
+    through the workspace, and listing both would just clutter the picker.
+    """
+    workspaces = find_xcworkspaces(root)
+    projects = find_xcodeprojs(root)
+    workspace_dirs = {w.parent for w in workspaces}
+    projects = [p for p in projects if p.parent not in workspace_dirs]
+    return sorted(workspaces + projects, key=lambda p: (p.parent, p.name))
+
+
+def _target_flag(target: Path) -> str:
+    """Return ``-workspace`` or ``-project`` depending on the target's suffix."""
+    return "-workspace" if target.suffix == ".xcworkspace" else "-project"
+
+
+def fetch_schemes(target: Path) -> list[str]:
+    """Return scheme names from ``xcodebuild -list -json``. Returns [] on failure.
+
+    The flag (``-workspace`` vs ``-project``) is chosen from *target*'s suffix
+    so this helper works uniformly for both target kinds. The JSON response
+    keys differ too: workspaces report under ``workspace.schemes``, projects
+    under ``project.schemes``.
+    """
     try:
         result = subprocess.run(
-            ["xcodebuild", "-list", "-project", str(xcodeproj), "-json"],
+            ["xcodebuild", "-list", _target_flag(target), str(target), "-json"],
             capture_output=True,
             text=True,
             timeout=30,
@@ -45,14 +85,15 @@ def fetch_schemes(xcodeproj: Path) -> list[str]:
         return []
     try:
         data = json.loads(result.stdout)
-        return data.get("project", {}).get("schemes", [])
     except (json.JSONDecodeError, AttributeError):
         return []
+    container = data.get("workspace") or data.get("project") or {}
+    return container.get("schemes", [])
 
 
-def detect_packages_root(xcodeproj: Path) -> Path | None:
-    """Return <xcodeproj_dir>/Packages if it exists, else None."""
-    candidate = xcodeproj.parent / "Packages"
+def detect_packages_root(target: Path) -> Path | None:
+    """Return ``<target_dir>/Packages`` if it exists, else None."""
+    candidate = target.parent / "Packages"
     return candidate if candidate.is_dir() else None
 
 
@@ -95,7 +136,7 @@ def _ensure_gitignored(root: Path) -> None:
 
 def _write_config(
     cfg_path: Path,
-    xcodeproj: Path,
+    target: Path,
     root: Path,
     scheme: str,
     sim_prefix: str,
@@ -110,7 +151,7 @@ def _write_config(
     doc["schema_version"] = 1
 
     proj_table = tomlkit.table()
-    proj_table.add("path", str(xcodeproj.relative_to(root)))
+    proj_table.add("path", str(target.relative_to(root)))
     proj_table.add("scheme", scheme)
     proj_table.add("configuration", "Debug")
     proj_table.add("simulator_prefix", sim_prefix)
@@ -128,7 +169,14 @@ def _write_config(
     cfg_path.write_text(tomlkit.dumps(doc))
 
 
-def run(*, project: str | None, scheme: str | None, yes: bool, force: bool) -> int:
+def run(
+    *,
+    project: str | None,
+    workspace: str | None,
+    scheme: str | None,
+    yes: bool,
+    force: bool,
+) -> int:
     root = find_worktree_root_for_bootstrap()
     pid = root / "worktree-ios-dev"
     cfg_path = pid / "project.toml"
@@ -138,30 +186,46 @@ def run(*, project: str | None, scheme: str | None, yes: bool, force: bool) -> i
         ui.done(f"Already initialised at {pid} (use --force to re-seed).")
         return 0
 
-    # ── Discover xcodeproj ──────────────────────────────────────────────────
-    if project:
-        xcodeproj = (root / project).resolve()
-        if not xcodeproj.exists():
-            raise UserError(f"Project not found: {xcodeproj}")
-        try:
-            xcodeproj.relative_to(root)
-        except ValueError:
+    if project and workspace:
+        raise UserError("Pass either --project or --workspace, not both.")
+
+    # ── Discover build target (xcworkspace or xcodeproj) ───────────────────
+    explicit = workspace or project
+    if explicit:
+        target = (root / explicit).resolve()
+        if not target.exists():
+            raise UserError(f"Build target not found: {target}")
+        if target.suffix not in (".xcworkspace", ".xcodeproj"):
             raise UserError(
-                f"--project path must be inside the worktree root ({root}). "
-                f"Got: {xcodeproj}"
+                f"Build target must be a .xcworkspace or .xcodeproj. Got: {target}"
             )
-        ui.step(f"Project: {project}")
+        if workspace and target.suffix != ".xcworkspace":
+            raise UserError(f"--workspace expects a .xcworkspace path. Got: {target}")
+        if project and target.suffix != ".xcodeproj":
+            raise UserError(f"--project expects a .xcodeproj path. Got: {target}")
+        try:
+            target.relative_to(root)
+        except ValueError:
+            flag = "--workspace" if workspace else "--project"
+            raise UserError(
+                f"{flag} path must be inside the worktree root ({root}). "
+                f"Got: {target}"
+            )
+        ui.step(f"Target: {explicit}")
     else:
-        with ui.spinner("Scanning for Xcode projects..."):
-            projs = find_xcodeprojs(root)
+        with ui.spinner("Scanning for Xcode projects and workspaces..."):
+            targets = find_build_targets(root)
 
-        if not projs:
-            raise UserError("No *.xcodeproj found under the worktree root. Pass --project <path>.")
+        if not targets:
+            raise UserError(
+                "No *.xcworkspace or *.xcodeproj found under the worktree root. "
+                "Pass --workspace <path> or --project <path>."
+            )
 
-        rel_projs = [str(p.relative_to(root)) for p in projs]
-        chosen_rel = _pick_one("project", rel_projs, yes)
-        xcodeproj = (root / chosen_rel).resolve()
-        ui.step(f"Project: {chosen_rel}")
+        rel_targets = [str(t.relative_to(root)) for t in targets]
+        chosen_rel = _pick_one("build target", rel_targets, yes)
+        target = (root / chosen_rel).resolve()
+        ui.step(f"Target: {chosen_rel}")
 
     # ── Discover scheme ─────────────────────────────────────────────────────
     if scheme:
@@ -169,16 +233,16 @@ def run(*, project: str | None, scheme: str | None, yes: bool, force: bool) -> i
         ui.step(f"Scheme: {chosen_scheme}")
     else:
         with ui.spinner("Fetching schemes..."):
-            schemes = fetch_schemes(xcodeproj)
+            schemes = fetch_schemes(target)
 
         if not schemes:
-            raise UserError(f"No schemes found in {xcodeproj}. Pass --scheme <name>.")
+            raise UserError(f"No schemes found in {target}. Pass --scheme <name>.")
 
         chosen_scheme = _pick_one("scheme", schemes, yes)
         ui.step(f"Scheme: {chosen_scheme}")
 
     # ── packages_root ───────────────────────────────────────────────────────
-    pkg_root = detect_packages_root(xcodeproj)
+    pkg_root = detect_packages_root(target)
     if pkg_root:
         ui.step(f"Packages root: {pkg_root.relative_to(root)}")
 
@@ -201,12 +265,12 @@ def run(*, project: str | None, scheme: str | None, yes: bool, force: bool) -> i
     # ── Write ───────────────────────────────────────────────────────────────
     pid.mkdir(exist_ok=True)
     (pid / "derivedData").mkdir(exist_ok=True)
-    _write_config(cfg_path, xcodeproj, root, chosen_scheme, sim_prefix, pkg_root)
+    _write_config(cfg_path, target, root, chosen_scheme, sim_prefix, pkg_root)
     _ensure_gitignored(root)
 
     ui.sep()
     ui.done("worktree-ios-dev/project.toml written")
-    ui.info(f"project          = {xcodeproj.relative_to(root)}")
+    ui.info(f"project          = {target.relative_to(root)}")
     ui.info(f"scheme           = {chosen_scheme}")
     ui.info(f"simulator_prefix = {sim_prefix}")
     if pkg_root:
