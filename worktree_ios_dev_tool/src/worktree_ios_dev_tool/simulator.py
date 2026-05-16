@@ -85,7 +85,7 @@ def ensure_tooling() -> None:
 
 def list_device_types(*, iphone_17_only: bool = True) -> list[DeviceType]:
     ensure_tooling()
-    data = json.loads(run_json(["xcrun", "simctl", "list", "devicetypes", "--json"]))
+    data = json.loads(run_json(["xcrun", "simctl", "list", "devicetypes", "--json"], verbose=True))
     types = [
         DeviceType(identifier=t["identifier"], name=t["name"])
         for t in data.get("devicetypes", [])
@@ -99,7 +99,7 @@ def list_device_types(*, iphone_17_only: bool = True) -> list[DeviceType]:
 
 def list_runtimes() -> list[Runtime]:
     ensure_tooling()
-    data = json.loads(run_json(["xcrun", "simctl", "list", "runtimes", "--json"]))
+    data = json.loads(run_json(["xcrun", "simctl", "list", "runtimes", "--json"], verbose=True))
     out: list[Runtime] = []
     for r in data.get("runtimes", []):
         if not r.get("isAvailable", False):
@@ -113,7 +113,7 @@ def list_runtimes() -> list[Runtime]:
 
 def find_device_by_name(name: str) -> dict | None:
     """Return the first device dict matching name, or None."""
-    data = json.loads(run_json(["xcrun", "simctl", "list", "devices", "--json"]))
+    data = json.loads(run_json(["xcrun", "simctl", "list", "devices", "--json"], verbose=True))
     for _, devices in data.get("devices", {}).items():
         for dev in devices:
             if dev.get("name") == name:
@@ -122,7 +122,7 @@ def find_device_by_name(name: str) -> dict | None:
 
 
 def find_device_by_udid(udid: str) -> dict | None:
-    data = json.loads(run_json(["xcrun", "simctl", "list", "devices", "--json"]))
+    data = json.loads(run_json(["xcrun", "simctl", "list", "devices", "--json"], verbose=True))
     for _, devices in data.get("devices", {}).items():
         for dev in devices:
             if dev.get("udid") == udid:
@@ -132,7 +132,7 @@ def find_device_by_udid(udid: str) -> dict | None:
 
 def create(name: str, device_type: DeviceType, runtime: Runtime) -> str:
     """Create a simulator and return the new UDID."""
-    out = run_json(["xcrun", "simctl", "create", name, device_type.identifier, runtime.identifier])
+    out = run_json(["xcrun", "simctl", "create", name, device_type.identifier, runtime.identifier], verbose=True)
     return out.strip()
 
 
@@ -145,12 +145,12 @@ def boot(udid: str) -> None:
         ui.step(f"Simulator already booted ({udid}).")
         return
     ui.step("Booting simulator…")
-    run(["xcrun", "simctl", "boot", udid])
+    run(["xcrun", "simctl", "boot", udid], verbose=True)
     run(["open", "-a", "Simulator"])
 
 
 def delete(udid: str) -> None:
-    run(["xcrun", "simctl", "delete", udid])
+    run(["xcrun", "simctl", "delete", udid], verbose=True)
 
 
 def _is_interactive() -> bool:
@@ -239,7 +239,7 @@ def list_all_devices() -> list[dict]:
     the runtime identifier so callers can filter / display without re-parsing.
     """
     ensure_tooling()
-    data = json.loads(run_json(["xcrun", "simctl", "list", "devices", "--json"]))
+    data = json.loads(run_json(["xcrun", "simctl", "list", "devices", "--json"], verbose=True))
     out: list[dict] = []
     for runtime_id, devices in data.get("devices", {}).items():
         for dev in devices:
@@ -262,7 +262,7 @@ def shutdown(udid: str) -> None:
         return
     if dev.get("state") != "Booted":
         return
-    run(["xcrun", "simctl", "shutdown", udid])
+    run(["xcrun", "simctl", "shutdown", udid], verbose=True)
 
 
 def device_data_dir(udid: str) -> Path:

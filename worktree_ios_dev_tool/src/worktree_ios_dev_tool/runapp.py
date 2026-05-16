@@ -56,10 +56,10 @@ def run(args: argparse.Namespace) -> int:
     # 3. Boot sim if needed, install, launch.
     ui.step("Installing…")
     sim_mod.boot(sim.udid)
-    proc_run(["xcrun", "simctl", "install", sim.udid, str(app_path)], verbose=args.verbose)
+    proc_run(["xcrun", "simctl", "install", sim.udid, str(app_path)], verbose=True)
 
     ui.step("Launching…")
-    result = proc_run(["xcrun", "simctl", "launch", sim.udid, bundle_id], capture=True, verbose=args.verbose)
+    result = proc_run(["xcrun", "simctl", "launch", sim.udid, bundle_id], capture=True, verbose=True)
     ui.sep()
     ui.done(f"Launched  {bundle_id}")
     ui.info(result.stdout.strip())
