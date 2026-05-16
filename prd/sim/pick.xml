@@ -1,0 +1,39 @@
+<prd name="Simulator Pick">
+
+<overview>
+The `sim pick` command creates a managed iOS simulator for the current worktree and records it in simulator.toml. It supports interactive selection of device type and runtime, with non-interactive overrides and an auto-select default for headless environments.
+</overview>
+<implementation platform="CLI" spec="TBD" />
+
+<requirement id="R1" name="Device type selection">
+  <description>
+    The picker offers a curated list of iPhone device types and lets the user opt out of the curation for older or specialized devices.
+  </description>
+  <rule id="latest_generation_default" status="❌">By default the picker lists only the latest iPhone generation available on the host, so the interactive prompt stays short.</rule>
+  <rule id="all_devices_flag" status="✅">Passing `--all-devices` lifts the curation and lists every iPhone device type the host knows about.</rule>
+  <rule id="device_flag_override" status="✅">Passing `--device &lt;name&gt;` selects that device type directly and skips the interactive prompt for device choice.</rule>
+</requirement>
+
+<requirement id="R2" name="Runtime selection">
+  <description>
+    The picker offers available iOS runtimes and lets the user override interactively or via flag.
+  </description>
+  <rule id="runtime_newest_default" status="✅">When the user does not specify a runtime, the newest available iOS runtime is offered first.</rule>
+  <rule id="runtime_flag_override" status="✅">Passing `--runtime &lt;name&gt;` selects that runtime directly and skips the interactive prompt for runtime choice.</rule>
+</requirement>
+
+<bug id="device_filter_pinned_to_iphone_17" status="Open" date="2026-05-16" rule="R1.latest_generation_default">
+  <current>
+    The default device-type filter is hardcoded to match only names containing "iPhone 17". When the host's newest iPhone generation is anything other than 17 (older host without iPhone 17 runtimes installed, or a future host with iPhone 18+), the default interactive picker shows an empty or stale list. Users must discover and pass `--all-devices` or `--device` to recover.
+  </current>
+  <expected>
+    The default filter should dynamically select the newest iPhone generation present on the host (by parsing the generation number from device-type names), so the picker remains short and useful without code changes when Apple ships a new generation or when running on older hosts.
+  </expected>
+  <steps>
+    1. Run `worktree-ios-dev-tool sim pick` on a host without any "iPhone 17" device types installed (e.g. only iPhone 16 simulators present).
+    2. Observe: the interactive device list is empty; the command fails or stalls.
+    3. Workaround: re-run with `--all-devices` or `--device "iPhone 16 Pro"`.
+  </steps>
+</bug>
+
+</prd>

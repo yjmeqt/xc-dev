@@ -35,6 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     pi = proj_sub.add_parser("init", help="Scaffold worktree-ios-dev/ and write project.toml.")
     pi.add_argument("--project", default=None, help="Relative path to .xcodeproj (skips auto-discovery).")
+    pi.add_argument("--workspace", default=None, help="Relative path to .xcworkspace (skips auto-discovery).")
     pi.add_argument("--scheme", default=None, help="Scheme name (skips auto-discovery).")
     pi.add_argument("--yes", action="store_true", help="Accept all detected defaults; error if ambiguous.")
     pi.add_argument("--force", action="store_true", help="Re-write project.toml even if it already exists.")

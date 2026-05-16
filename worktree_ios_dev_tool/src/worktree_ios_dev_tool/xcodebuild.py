@@ -10,11 +10,16 @@ def _destination(sim: SimulatorEntry) -> str:
     return f"platform=iOS Simulator,id={sim.udid}"
 
 
+def _target_flag(cfg: Config) -> str:
+    """Return ``-workspace`` for ``.xcworkspace`` targets, else ``-project``."""
+    return "-workspace" if cfg.project.path.suffix == ".xcworkspace" else "-project"
+
+
 def _common(cfg: Config, sim: SimulatorEntry | None, *, release: bool) -> list[str]:
     configuration = "Release" if release else cfg.project.configuration
     argv: list[str] = [
         "xcodebuild",
-        "-project", str(cfg.project.path),
+        _target_flag(cfg), str(cfg.project.path),
         "-scheme", cfg.project.scheme,
         "-configuration", configuration,
         "-derivedDataPath", str(cfg.derived_data),

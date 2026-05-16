@@ -162,8 +162,14 @@ def load(project_toml: Path) -> Config:
         if key not in proj:
             raise UserError(f"[project] missing `{key}` in {project_toml}.")
     wt_root = worktree_root(project_toml)
+    proj_path = (wt_root / proj["path"]).resolve()
+    if proj_path.suffix not in (".xcworkspace", ".xcodeproj"):
+        raise UserError(
+            f"[project].path must point at a .xcworkspace or .xcodeproj. "
+            f"Got: {proj_path}"
+        )
     project = ProjectConfig(
-        path=(wt_root / proj["path"]).resolve(),
+        path=proj_path,
         scheme=proj["scheme"],
         configuration=proj.get("configuration", "Debug"),
         simulator_prefix=proj.get("simulator_prefix") or proj["scheme"],

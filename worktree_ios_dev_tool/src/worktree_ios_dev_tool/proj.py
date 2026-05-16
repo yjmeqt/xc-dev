@@ -33,6 +33,7 @@ def cmd_init(args: argparse.Namespace) -> int:
     from . import bootstrap
     return bootstrap.run(
         project=args.project,
+        workspace=args.workspace,
         scheme=args.scheme,
         yes=args.yes,
         force=args.force,
