@@ -1,0 +1,42 @@
+<prd name="Project Configuration">
+
+<overview>
+The tool bootstraps a `project.toml` for a worktree by discovering the Xcode project, listing its schemes, and recording a destination configuration that `xcodebuild` invocations downstream rely on. Configuration covers both the initial `init` flow and the runtime contract every build/test/clean command honours.
+</overview>
+<implementation platform="CLI" spec="TBD" />
+
+<requirement id="R1" name="Project discovery">
+  <description>
+    The tool finds the Xcode project for a worktree, either by auto-scanning the worktree root or by accepting an explicit path.
+  </description>
+  <rule id="auto_discover_xcodeproj" status="✅">When no explicit path is given, the tool scans the worktree root for `*.xcodeproj` directories and prompts the user to pick one if multiple are found.</rule>
+  <rule id="project_flag_override" status="✅">Passing `--project &lt;path&gt;` to `init` selects that project directly and skips auto-discovery.</rule>
+  <rule id="auto_discover_xcworkspace" status="✅">When the worktree contains an `.xcworkspace` (alone or alongside `.xcodeproj` files), the tool offers the workspace as a discoverable target on equal footing with the contained projects.</rule>
+  <rule id="workspace_supersedes_sibling" status="✅" context="workspace and project share a parent directory">The workspace replaces the sibling project in the discovery list, matching Xcode/CocoaPods/Tuist convention that the workspace is the canonical build target.</rule>
+  <rule id="workspace_flag_override" status="✅">Passing `--workspace &lt;path&gt;` to `init` selects that workspace directly and skips auto-discovery.</rule>
+</requirement>
+
+<requirement id="R2" name="Build invocation">
+  <description>
+    Every `build`, `test`, and `clean` command emits a single `xcodebuild` invocation that matches the recorded project type.
+  </description>
+  <rule id="xcodebuild_project_flag" status="✅">When the recorded target is an `.xcodeproj`, every invocation passes `-project &lt;path&gt;` and the configured scheme.</rule>
+  <rule id="xcodebuild_workspace_flag" status="✅">When the recorded target is an `.xcworkspace`, every invocation passes `-workspace &lt;path&gt;` instead of `-project`, with the configured scheme resolved against the workspace.</rule>
+</requirement>
+
+<bug id="no_xcworkspace_support" status="Fix Pending" date="2026-05-16" rule="R1.auto_discover_xcworkspace">
+  <current>
+    The tool only recognises `.xcodeproj` targets. `bootstrap.find_xcodeprojs()` scans for `*.xcodeproj` only; the `--project` flag accepts only an `.xcodeproj` path; `Project.path` is validated as a `.xcodeproj`; and every `xcodebuild` invocation hard-codes `-project`. Projects that build through an `.xcworkspace` — CocoaPods integrations, Tuist-generated workspaces, multi-project workspaces, or any setup where schemes are defined on the workspace rather than a contained project — cannot be configured. Running `init` in such a worktree either fails with "no xcodeproj found" or picks an inner `.xcodeproj` whose builds then fail because workspace-level configuration (Pods, shared schemes) is missing.
+  </current>
+  <expected>
+    `init` should discover `.xcworkspace` files in addition to `.xcodeproj`, accept a `--workspace` flag, record the chosen target type in `project.toml`, and emit `-workspace` instead of `-project` for workspace targets. Scheme listing must also use `-workspace` when applicable so `xcodebuild -list` returns workspace-level schemes.
+  </expected>
+  <steps>
+    1. Open a worktree whose root contains an `.xcworkspace` (e.g. a CocoaPods-integrated project where the workspace pulls in `Pods.xcodeproj` and the app project).
+    2. Run `worktree-ios-dev-tool init`.
+    3. Observe: the tool either reports "No *.xcodeproj found" (if the workspace is the only buildable target) or auto-picks an inner `.xcodeproj`. There is no way to point it at the `.xcworkspace`.
+    4. If an inner `.xcodeproj` is selected, subsequent `build` invocations call `xcodebuild -project &lt;inner&gt;.xcodeproj -scheme &lt;name&gt;`, which fails for workspace-only schemes or projects that depend on Pods linkage resolved at the workspace level.
+  </steps>
+</bug>
+
+</prd>

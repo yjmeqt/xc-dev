@@ -1,0 +1,8 @@
+<prd_index>
+  <module name="sim">
+    <entry file="sim/pick.xml" name="Simulator Pick" />
+  </module>
+  <module name="project">
+    <entry file="project/configuration.xml" name="Project Configuration" />
+  </module>
+</prd_index>
