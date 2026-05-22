@@ -14,6 +14,7 @@ if str(_SRC) not in sys.path:
 
 from worktree_ios_dev_tool.bootstrap import (  # noqa: E402
     detect_packages_root,
+    fetch_app_metadata,
     fetch_schemes,
     find_build_targets,
     find_xcodeprojs,
@@ -152,6 +153,91 @@ class DetectPackagesRootTests(unittest.TestCase):
             xcodeproj.mkdir(parents=True)
             result = detect_packages_root(xcodeproj)
             self.assertIsNone(result)
+
+
+class FetchAppMetadataTests(unittest.TestCase):
+    def _mock_settings(self, settings: dict) -> Mock:
+        mock_result = Mock()
+        mock_result.returncode = 0
+        mock_result.stdout = json.dumps([{"buildSettings": settings}])
+        return mock_result
+
+    def test_extracts_all_known_keys(self) -> None:
+        mock = self._mock_settings({
+            "PRODUCT_BUNDLE_IDENTIFIER": "com.example.app",
+            "FULL_PRODUCT_NAME": "MyApp.app",
+            "PRODUCT_NAME": "MyApp",
+            "INFOPLIST_KEY_CFBundleDisplayName": "My App",
+            "IPHONEOS_DEPLOYMENT_TARGET": "17.0",
+        })
+        with patch("subprocess.run", return_value=mock) as run_mock:
+            result = fetch_app_metadata(
+                Path("ios/MyApp.xcworkspace"), "MyApp", "Debug",
+            )
+        self.assertEqual(result, {
+            "bundle_id": "com.example.app",
+            "product_name": "MyApp",
+            "display_name": "My App",
+            "min_ios_version": "17.0",
+        })
+        # Verify it used -workspace for a .xcworkspace target.
+        argv = run_mock.call_args.args[0]
+        self.assertIn("-workspace", argv)
+        self.assertIn("-showBuildSettings", argv)
+
+    def test_strips_app_suffix_from_full_product_name(self) -> None:
+        mock = self._mock_settings({
+            "PRODUCT_BUNDLE_IDENTIFIER": "com.example.app",
+            "FULL_PRODUCT_NAME": "Widget.appex",
+            "PRODUCT_NAME": "Widget",
+        })
+        with patch("subprocess.run", return_value=mock):
+            result = fetch_app_metadata(Path("p.xcodeproj"), "Widget", "Debug")
+        self.assertEqual(result["product_name"], "Widget")
+
+    def test_falls_back_to_product_name_when_full_missing(self) -> None:
+        mock = self._mock_settings({
+            "PRODUCT_BUNDLE_IDENTIFIER": "com.example.app",
+            "PRODUCT_NAME": "MyApp",
+        })
+        with patch("subprocess.run", return_value=mock):
+            result = fetch_app_metadata(Path("p.xcodeproj"), "MyApp", "Debug")
+        self.assertEqual(result["product_name"], "MyApp")
+
+    def test_omits_missing_keys(self) -> None:
+        # Framework / CLI schemes won't have a bundle id; we just omit the key
+        # rather than emitting an empty string.
+        mock = self._mock_settings({"PRODUCT_NAME": "MyKit"})
+        with patch("subprocess.run", return_value=mock):
+            result = fetch_app_metadata(Path("p.xcodeproj"), "MyKit", "Debug")
+        self.assertNotIn("bundle_id", result)
+        self.assertNotIn("display_name", result)
+        self.assertEqual(result.get("product_name"), "MyKit")
+
+    def test_returns_empty_on_nonzero_exit(self) -> None:
+        mock_result = Mock()
+        mock_result.returncode = 65
+        mock_result.stdout = ""
+        with patch("subprocess.run", return_value=mock_result):
+            result = fetch_app_metadata(Path("p.xcodeproj"), "S", "Debug")
+        self.assertEqual(result, {})
+
+    def test_returns_empty_on_invalid_json(self) -> None:
+        mock_result = Mock()
+        mock_result.returncode = 0
+        mock_result.stdout = "not json"
+        with patch("subprocess.run", return_value=mock_result):
+            result = fetch_app_metadata(Path("p.xcodeproj"), "S", "Debug")
+        self.assertEqual(result, {})
+
+    def test_returns_empty_on_timeout(self) -> None:
+        import subprocess
+        with patch(
+            "subprocess.run",
+            side_effect=subprocess.TimeoutExpired(cmd="xcodebuild", timeout=60),
+        ):
+            result = fetch_app_metadata(Path("p.xcodeproj"), "S", "Debug")
+        self.assertEqual(result, {})
 
 
 if __name__ == "__main__":

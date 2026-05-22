@@ -19,6 +19,14 @@ class ProjectConfig:
     scheme: str
     configuration: str
     simulator_prefix: str | None = None
+    # App metadata resolved at `proj init` time from
+    # `xcodebuild -showBuildSettings`. Optional because non-app schemes
+    # (frameworks, CLIs) don't have a bundle id, and because legacy
+    # schema_version = 1 files predate these fields.
+    bundle_id: str | None = None
+    product_name: str | None = None
+    display_name: str | None = None
+    min_ios_version: str | None = None
 
 
 @dataclass(frozen=True)
@@ -62,12 +70,17 @@ class Config:
     extras_xcodebuild_flags: list[str] = field(default_factory=list)
 
 
-PROJECT_SCHEMA_VERSION = 1
+# Latest schema we write; readers also accept anything in _PROJECT_SCHEMA_READ.
+PROJECT_SCHEMA_VERSION = 2
+_PROJECT_SCHEMA_READ = {1, 2}
 SIMULATOR_SCHEMA_VERSION = 1
 
 _ALLOWED_PROJECT_TOP = {"schema_version", "project", "packages_root", "packages", "extras"}
 _ALLOWED_SIMULATOR_TOP = {"schema_version", "simulators"}
-_ALLOWED_PROJECT = {"path", "scheme", "configuration", "simulator_prefix"}
+_ALLOWED_PROJECT = {
+    "path", "scheme", "configuration", "simulator_prefix",
+    "bundle_id", "product_name", "display_name", "min_ios_version",
+}
 _ALLOWED_SIMULATOR = {"name", "udid", "device", "runtime"}
 _ALLOWED_PACKAGES_ROOT = {"path"}
 _ALLOWED_PACKAGE = {"scheme"}
@@ -89,11 +102,15 @@ def _read_toml(path: Path) -> dict:
         return tomllib.load(fh)
 
 
-def _check_version(data: dict, path: Path, *, expected: int, recovery: str) -> None:
+def _check_version(
+    data: dict, path: Path, *, accepted: int | set[int], recovery: str
+) -> None:
     """Validate ``schema_version`` at the top of *data*.
 
     Missing → UserError citing *recovery* (the verb to re-run).
     Mismatched → UserError naming the version we found vs what we accept.
+    *accepted* may be a single int or a set of acceptable versions
+    (readers tolerate older versions; writers always produce the latest).
     """
     if "schema_version" not in data:
         raise UserError(
@@ -101,9 +118,11 @@ def _check_version(data: dict, path: Path, *, expected: int, recovery: str) -> N
             f"Re-run `worktree-ios-dev-tool {recovery}` to regenerate the file."
         )
     v = data["schema_version"]
-    if v != expected:
+    accepted_set = {accepted} if isinstance(accepted, int) else accepted
+    if v not in accepted_set:
+        accepted_str = ", ".join(str(a) for a in sorted(accepted_set))
         raise UserError(
-            f"{path}: schema_version {v!r} not supported (expected {expected}). "
+            f"{path}: schema_version {v!r} not supported (accepted: {accepted_str}). "
             f"Upgrade worktree-ios-dev-tool or migrate manually."
         )
 
@@ -115,7 +134,7 @@ def _load_simulators(simulator_toml: Path) -> dict[str, SimulatorEntry]:
     data = _read_toml(simulator_toml)
     _check_version(
         data, simulator_toml,
-        expected=SIMULATOR_SCHEMA_VERSION,
+        accepted=SIMULATOR_SCHEMA_VERSION,
         recovery="sim pick",
     )
     _require_keys("<simulator.toml root>", data, _ALLOWED_SIMULATOR_TOP)
@@ -146,7 +165,7 @@ def load(project_toml: Path) -> Config:
     proj_data = _read_toml(project_toml)
     _check_version(
         proj_data, project_toml,
-        expected=PROJECT_SCHEMA_VERSION,
+        accepted=_PROJECT_SCHEMA_READ,
         recovery="proj init",
     )
     _require_keys("<project.toml root>", proj_data, _ALLOWED_PROJECT_TOP)
@@ -168,11 +187,22 @@ def load(project_toml: Path) -> Config:
             f"[project].path must point at a .xcworkspace or .xcodeproj. "
             f"Got: {proj_path}"
         )
+    def _opt_str(key: str) -> str | None:
+        v = proj.get(key)
+        if v is None:
+            return None
+        if not isinstance(v, str):
+            raise UserError(f"[project].{key} must be a string in {project_toml}.")
+        return v or None
     project = ProjectConfig(
         path=proj_path,
         scheme=proj["scheme"],
         configuration=proj.get("configuration", "Debug"),
         simulator_prefix=proj.get("simulator_prefix") or proj["scheme"],
+        bundle_id=_opt_str("bundle_id"),
+        product_name=_opt_str("product_name"),
+        display_name=_opt_str("display_name"),
+        min_ios_version=_opt_str("min_ios_version"),
     )
 
     pkg_root_cfg = proj_data.get("packages_root", {"path": "ios/Packages"})
