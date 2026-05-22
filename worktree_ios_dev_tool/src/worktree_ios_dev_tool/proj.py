@@ -10,10 +10,11 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
+import tomllib
 from pathlib import Path
 
-from . import simulator as sim_mod, ui
-from .config import Config, load
+from . import bootstrap, simulator as sim_mod, ui
+from .config import PROJECT_SCHEMA_VERSION, Config, load
 from .errors import EnvError
 from .paths import find_project_toml
 
@@ -52,6 +53,10 @@ def cmd_config(args: argparse.Namespace) -> int:
             "scheme": cfg.project.scheme,
             "configuration": cfg.project.configuration,
             "simulator_prefix": cfg.project.simulator_prefix,
+            "bundle_id": cfg.project.bundle_id,
+            "product_name": cfg.project.product_name,
+            "display_name": cfg.project.display_name,
+            "min_ios_version": cfg.project.min_ios_version,
         },
         "simulators": {
             label: {
@@ -119,6 +124,41 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         if not cfg.derived_data.parent.exists():
             ui.problem(f"worktree-ios-dev/  missing: {cfg.derived_data.parent}")
             problems.append(f"worktree-ios-dev/ missing: {cfg.derived_data.parent}")
+
+        # Legacy schema check + app-metadata drift check. Both are warnings,
+        # not errors — neither blocks builds; both nudge the user to refresh.
+        try:
+            with cfg.config_path.open("rb") as fh:
+                raw = tomllib.load(fh)
+            version = raw.get("schema_version")
+            if isinstance(version, int) and version < PROJECT_SCHEMA_VERSION:
+                ui.warn(
+                    f"project.toml   schema_version = {version} "
+                    f"(latest = {PROJECT_SCHEMA_VERSION}). "
+                    f"Re-run `proj init --force` to record app metadata "
+                    f"(bundle_id, product_name, …)."
+                )
+        except (OSError, tomllib.TOMLDecodeError):
+            pass
+
+        if shutil.which("xcodebuild") is not None and cfg.project.path.exists():
+            with ui.spinner("Re-resolving app metadata for drift check…"):
+                live = bootstrap.fetch_app_metadata(
+                    cfg.project.path, cfg.project.scheme, cfg.project.configuration,
+                )
+            for key, recorded in (
+                ("bundle_id", cfg.project.bundle_id),
+                ("product_name", cfg.project.product_name),
+                ("display_name", cfg.project.display_name),
+                ("min_ios_version", cfg.project.min_ios_version),
+            ):
+                live_val = live.get(key)
+                if live_val and recorded and live_val != recorded:
+                    ui.warn(
+                        f"project.{key:<15} recorded = {recorded!r} "
+                        f"but xcodebuild reports {live_val!r}. "
+                        f"Re-run `proj init --force` to refresh."
+                    )
 
     ui.sep()
     if problems:
