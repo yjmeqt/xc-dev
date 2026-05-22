@@ -136,8 +136,14 @@ def create(name: str, device_type: DeviceType, runtime: Runtime) -> str:
     return out.strip()
 
 
-def boot(udid: str) -> None:
-    """Boot the simulator. No-ops if already booted."""
+def boot(udid: str, *, open_gui: bool = True) -> None:
+    """Boot the simulator. No-ops if already booted.
+
+    With ``open_gui=False`` the booted sim runs entirely headless — the
+    user-facing ``--no-window`` flag plumbs through here. ``simd`` and the
+    framebuffer surface exist regardless; only Apple's ``Simulator.app``
+    GUI shell is suppressed.
+    """
     dev = find_device_by_udid(udid)
     if dev is None:
         raise UserError(f"No simulator with UDID {udid}.")
@@ -146,7 +152,38 @@ def boot(udid: str) -> None:
         return
     ui.step("Booting simulator…")
     run(["xcrun", "simctl", "boot", udid], verbose=True)
-    run(["open", "-a", "Simulator"])
+    if open_gui:
+        run(["open", "-a", "Simulator"])
+
+
+def attach_gui(udid: str | None = None) -> None:
+    """Launch ``Simulator.app``, optionally focused on a specific device.
+
+    Idempotent: macOS ``open`` brings the existing instance forward if it's
+    already running. Passing *udid* re-targets the GUI at that device via
+    Simulator.app's private ``-CurrentDeviceUDID`` arg (used by Xcode itself).
+    """
+    cmd = ["open", "-a", "Simulator"]
+    if udid:
+        cmd += ["--args", "-CurrentDeviceUDID", udid]
+    run(cmd, verbose=True)
+
+
+def detach_gui() -> bool:
+    """Terminate ``Simulator.app``. The booted simulators stay running —
+    ``simd`` is independent of the GUI shell. Returns ``True`` if we sent a
+    signal, ``False`` if Simulator.app wasn't running.
+
+    Uses ``pkill`` (not ``killall``) so the no-match case can be detected via
+    exit code 1 without printing the noisy ``No matching processes`` line.
+    """
+    import subprocess as _sp
+    result = _sp.run(
+        ["pkill", "-x", "Simulator"],
+        capture_output=True,
+        text=True,
+    )
+    return result.returncode == 0
 
 
 def delete(udid: str) -> None:
