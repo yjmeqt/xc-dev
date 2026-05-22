@@ -64,6 +64,24 @@ def _target_flag(target: Path) -> str:
     return "-workspace" if target.suffix == ".xcworkspace" else "-project"
 
 
+def _parse_leading_json(text: str):
+    """Parse the first JSON value in *text*, tolerating trailing non-JSON noise.
+
+    ``xcodebuild`` occasionally appends warnings like
+    ``Found unhandled resource at …`` on stdout after the JSON blob, which
+    breaks plain ``json.loads`` with an "Extra data" error.
+    """
+    if not text:
+        return None
+    stripped = text.lstrip()
+    offset = len(text) - len(stripped)
+    try:
+        value, _end = json.JSONDecoder().raw_decode(text, idx=offset)
+    except (json.JSONDecodeError, ValueError):
+        return None
+    return value
+
+
 def fetch_schemes(target: Path) -> list[str]:
     """Return scheme names from ``xcodebuild -list -json``. Returns [] on failure.
 
@@ -83,9 +101,8 @@ def fetch_schemes(target: Path) -> list[str]:
         return []
     if result.returncode != 0:
         return []
-    try:
-        data = json.loads(result.stdout)
-    except (json.JSONDecodeError, AttributeError):
+    data = _parse_leading_json(result.stdout)
+    if not isinstance(data, dict):
         return []
     container = data.get("workspace") or data.get("project") or {}
     return container.get("schemes", [])
@@ -129,10 +146,7 @@ def fetch_app_metadata(
         return {}
     if result.returncode != 0:
         return {}
-    try:
-        entries = json.loads(result.stdout)
-    except (json.JSONDecodeError, AttributeError):
-        return {}
+    entries = _parse_leading_json(result.stdout)
     if not isinstance(entries, list) or not entries:
         return {}
     # -showBuildSettings emits one entry per target/action; the first entry
