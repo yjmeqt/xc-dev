@@ -104,20 +104,60 @@ def cmd_pick(args: argparse.Namespace) -> int:
 
 
 def cmd_boot(args: argparse.Namespace) -> int:
-    """Boot a configured simulator. ``--all`` boots every entry."""
+    """Boot a configured simulator. ``--all`` boots every entry.
+
+    ``--no-window`` boots without opening ``Simulator.app`` — the simulator
+    runs entirely headless (consumed by embedded mirrors, CI, log-only
+    workflows). If Simulator.app is already running, we *additionally*
+    detach it so the booted device doesn't pop a window after the fact.
+    """
     cfg, _ = _load(args)
+    open_gui = not getattr(args, "no_window", False)
     if args.all:
         if not cfg.simulators:
             raise UserError("No simulators configured. Run `sim pick` first.")
         for label, entry in cfg.simulators.items():
             ui.step(f"Booting {label} ({entry.udid})…")
-            sim_mod.boot(entry.udid)
+            sim_mod.boot(entry.udid, open_gui=open_gui)
+        if not open_gui and sim_mod.detach_gui():
+            ui.step("Detached Simulator.app (booted sims stay running).")
         ui.done(f"Booted {len(cfg.simulators)} simulator(s).")
         return 0
 
     entry = resolve_sim(cfg, label=args.label)
-    sim_mod.boot(entry.udid)
+    sim_mod.boot(entry.udid, open_gui=open_gui)
+    if not open_gui and sim_mod.detach_gui():
+        ui.step("Detached Simulator.app (booted sim stays running).")
     ui.done(f"Booted {entry.name} ({entry.udid}).")
+    return 0
+
+
+def cmd_attach(args: argparse.Namespace) -> int:
+    """Bring up ``Simulator.app`` focused on the named sim (booting it if
+    needed). The inverse of ``sim detach``. ``--all`` skips the per-device
+    arg and just opens Simulator.app, which shows every booted device.
+    """
+    cfg, _ = _load(args)
+    if getattr(args, "all", False):
+        sim_mod.attach_gui(None)
+        ui.done("Attached Simulator.app (no specific device pinned).")
+        return 0
+    entry = resolve_sim(cfg, label=args.label)
+    sim_mod.boot(entry.udid, open_gui=False)
+    sim_mod.attach_gui(entry.udid)
+    ui.done(f"Attached Simulator.app to {entry.name} ({entry.udid}).")
+    return 0
+
+
+def cmd_detach(args: argparse.Namespace) -> int:
+    """Terminate ``Simulator.app`` (GUI only). The booted simulators keep
+    running — ``simd`` is independent. Idempotent; exits 0 either way.
+    """
+    _ = args  # no flags; signature kept consistent with other cmd_*
+    if sim_mod.detach_gui():
+        ui.done("Detached Simulator.app.")
+    else:
+        ui.done("Simulator.app was not running.")
     return 0
 
 
