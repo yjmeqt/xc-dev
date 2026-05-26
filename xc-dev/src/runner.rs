@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::path::Path;
 use crate::config::tasks::{Task, Tasks};
@@ -71,9 +72,18 @@ pub fn run(start_dir: &Path, task_name: &str, user_args: &[String], verbose: boo
             bind_args(task, &[])?
         };
         let v = Vars::build(root.clone(), pf.clone(), sf.clone(), args_for_task, name)?;
+        let pending_err: RefCell<Option<XcDevError>> = RefCell::new(None);
         let rendered = template::render(&task.cmd, name, &|n| {
-            v.try_resolve(n).ok().flatten()
-        })?;
+            match v.try_resolve(n) {
+                Ok(some) => some,
+                Err(e) => {
+                    *pending_err.borrow_mut() = Some(e);
+                    None
+                }
+            }
+        });
+        if let Some(e) = pending_err.into_inner() { return Err(e); }
+        let rendered = rendered?;
         if verbose {
             eprintln!("+ {name}");
             for line in rendered.lines() {

@@ -265,6 +265,26 @@ fn init_writes_placeholder_when_flags_missing() {
 }
 
 #[test]
+fn doctor_passes_task_with_required_arg() {
+    let tmp = tempdir().unwrap();
+    write_minimal(tmp.path(), r#"
+[tasks.test-package]
+args = ["package"]
+cmd = "swift test --package-path Packages/{{package}}"
+"#);
+    let assert = Command::cargo_bin("xc-dev").unwrap()
+        .current_dir(tmp.path())
+        .arg(":doctor")
+        .assert();
+    let out = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
+    // The vars line for test-package should be PASS, not FAIL.
+    assert!(out.contains("PASS  task `test-package` vars"),
+            "expected PASS for test-package vars, got:\n{out}");
+    assert!(!out.contains("FAIL  task `test-package` vars"),
+            "should not FAIL on required-arg task:\n{out}");
+}
+
+#[test]
 fn init_emits_starter_tasks_toml() {
     let tmp = tempdir().unwrap();
     Command::cargo_bin("xc-dev").unwrap()

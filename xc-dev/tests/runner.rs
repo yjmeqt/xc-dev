@@ -321,6 +321,35 @@ cmd = "echo hello from {{scheme}}"
 }
 
 #[test]
+fn git_var_outside_repo_reports_var_unavailable() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dotdir = tmp.path().join(".xc-dev");
+    std::fs::create_dir_all(&dotdir).unwrap();
+    std::fs::write(dotdir.join("project.toml"), r#"
+schema_version = 1
+[project]
+path = "X.xcworkspace"
+scheme = "X"
+configuration = "Debug"
+bundle_id = "com.x"
+product_name = "X"
+min_ios_version = "26.0"
+"#).unwrap();
+    std::fs::write(dotdir.join("simulator.toml"), "schema_version = 1\n").unwrap();
+    std::fs::write(dotdir.join("tasks.toml"), r#"
+[tasks.show-branch]
+cmd = "echo {{git_branch}}"
+"#).unwrap();
+    let err = xc_dev::runner::run(tmp.path(), "show-branch", &[], false).unwrap_err();
+    match err {
+        xc_dev::error::XcDevError::VarUnavailable { name, .. } => {
+            assert_eq!(name, "git_branch");
+        }
+        other => panic!("expected VarUnavailable, got {other:?}"),
+    }
+}
+
+#[test]
 fn no_verbose_does_not_echo() {
     use assert_cmd::Command;
     let tmp = tempfile::tempdir().unwrap();
