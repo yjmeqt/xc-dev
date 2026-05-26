@@ -18,9 +18,8 @@ fn run(inv: cli::Invocation) -> i32 {
         cli::Command::Doctor => builtins::doctor::run(&cwd),
         cli::Command::ProjInit { force, yes, path, scheme } =>
             builtins::init::run(&cwd, force, yes, path.as_deref(), scheme.as_deref()),
-        cli::Command::Task { name, args } => runner::run(&cwd, &name, &args),
+        cli::Command::Task { name, args } => runner::run(&cwd, &name, &args, inv.verbose),
     };
-    let _ = inv.verbose; // Task 20 will wire this through.
     match result {
         Ok(code) => code,
         Err(e) => { eprintln!("xc-dev: {e}"); 1 }

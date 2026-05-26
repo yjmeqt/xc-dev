@@ -50,7 +50,7 @@ pub fn bind_args(task: &Task, user_args: &[String]) -> Result<BTreeMap<String, S
 /// Top-level entry: from a starting directory, find the project,
 /// resolve the dependency chain for `task_name`, and execute each.
 /// Returns the exit code of the last task run (0 if the chain succeeded).
-pub fn run(start_dir: &Path, task_name: &str, user_args: &[String]) -> Result<i32> {
+pub fn run(start_dir: &Path, task_name: &str, user_args: &[String], verbose: bool) -> Result<i32> {
     let root = paths::find_project_root(start_dir)?;
     let dotdir = paths::xc_dev_dir(&root);
     let pf = config::project::load(&dotdir.join("project.toml"))?;
@@ -74,6 +74,12 @@ pub fn run(start_dir: &Path, task_name: &str, user_args: &[String]) -> Result<i3
         let rendered = template::render(&task.cmd, name, &|n| {
             v.try_resolve(n).ok().flatten()
         })?;
+        if verbose {
+            eprintln!("+ {name}");
+            for line in rendered.lines() {
+                eprintln!("+ {line}");
+            }
+        }
         let cwd = task.cwd.as_ref().map(|c| root.join(c));
         let code = exec::run_script(&rendered, cwd.as_deref(), &task.env)?;
         last_code = code;
