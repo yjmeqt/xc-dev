@@ -62,3 +62,30 @@ fn errors_when_no_xc_dev_dir() {
     let err = xc_dev::paths::find_project_root(tmp.path()).unwrap_err();
     assert!(matches!(err, xc_dev::error::XcDevError::NoProjectDir(_)));
 }
+
+#[test]
+fn parses_multi_sim() {
+    let toml = r#"
+schema_version = 1
+[sim.default]
+id = "ABC-123"
+name = "iPhone 17 Pro"
+runtime = "iOS 26.2"
+
+[sim.ipad]
+id = "DEF-456"
+name = "iPad Pro 11"
+runtime = "iOS 26.2"
+"#;
+    let s = xc_dev::config::simulator::parse(toml).unwrap();
+    assert_eq!(s.sim.len(), 2);
+    assert_eq!(s.sim["default"].id, "ABC-123");
+    assert_eq!(s.sim["ipad"].name, "iPad Pro 11");
+}
+
+#[test]
+fn parses_empty_simulator_file() {
+    let toml = "schema_version = 1\n";
+    let s = xc_dev::config::simulator::parse(toml).unwrap();
+    assert!(s.sim.is_empty());
+}
