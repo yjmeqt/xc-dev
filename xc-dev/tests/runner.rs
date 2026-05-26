@@ -90,6 +90,50 @@ cmd = "echo solo"
     assert_eq!(order, vec!["solo".to_string()]);
 }
 
+use std::collections::BTreeMap;
+
+#[test]
+fn exec_runs_zero_exit() {
+    let code = xc_dev::exec::run_script("exit 0", None, &BTreeMap::new()).unwrap();
+    assert_eq!(code, 0);
+}
+
+#[test]
+fn exec_propagates_nonzero_exit() {
+    let code = xc_dev::exec::run_script("exit 42", None, &BTreeMap::new()).unwrap();
+    assert_eq!(code, 42);
+}
+
+#[test]
+fn exec_shell_state_persists_across_lines() {
+    // Without single-shell semantics, line 2 wouldn't see VAR set in line 1.
+    let code = xc_dev::exec::run_script("VAR=hi\ntest \"$VAR\" = hi", None, &BTreeMap::new()).unwrap();
+    assert_eq!(code, 0);
+}
+
+#[test]
+fn exec_cwd_and_env_honored() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut env = BTreeMap::new();
+    env.insert("MARKER".into(), "yes".into());
+    // On macOS, /tmp -> /private/tmp; canonicalize so test compares apples to apples.
+    let canon = tmp.path().canonicalize().unwrap();
+    let cmd = format!(
+        "test \"$MARKER\" = yes && test \"$(pwd -P)\" = \"{}\"",
+        canon.display()
+    );
+    let code = xc_dev::exec::run_script(&cmd, Some(&canon), &env).unwrap();
+    assert_eq!(code, 0);
+}
+
+#[test]
+fn exec_set_e_not_injected() {
+    // Lines 1 (false) wouldn't halt without `set -e`; line 2 still runs and succeeds.
+    // Final exit code should be 0 (from `true`).
+    let code = xc_dev::exec::run_script("false\ntrue", None, &BTreeMap::new()).unwrap();
+    assert_eq!(code, 0);
+}
+
 use xc_dev::config::tasks::Task;
 
 fn task_with_args(args: &[&str]) -> Task {
