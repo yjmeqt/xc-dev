@@ -89,3 +89,68 @@ cmd = "echo solo"
     let order = runner::resolve_chain("solo", &t).unwrap();
     assert_eq!(order, vec!["solo".to_string()]);
 }
+
+use xc_dev::config::tasks::Task;
+
+fn task_with_args(args: &[&str]) -> Task {
+    let toml_args = args.iter().map(|s| format!("\"{s}\"")).collect::<Vec<_>>().join(", ");
+    let s = format!(
+        "[tasks.x]\nargs = [{toml_args}]\ncmd = \"echo\"\n"
+    );
+    xc_dev::config::tasks::parse(&s).unwrap().tasks.remove("x").unwrap()
+}
+
+#[test]
+fn binds_defaults_when_no_user_args() {
+    let t = task_with_args(&["config=Debug"]);
+    let m = xc_dev::runner::bind_args(&t, &[]).unwrap();
+    assert_eq!(m.get("config").map(String::as_str), Some("Debug"));
+}
+
+#[test]
+fn binds_positional_override() {
+    let t = task_with_args(&["config=Debug"]);
+    let m = xc_dev::runner::bind_args(&t, &["Release".into()]).unwrap();
+    assert_eq!(m.get("config").map(String::as_str), Some("Release"));
+}
+
+#[test]
+fn binds_required_arg() {
+    let t = task_with_args(&["package"]);
+    let m = xc_dev::runner::bind_args(&t, &["Networking".into()]).unwrap();
+    assert_eq!(m.get("package").map(String::as_str), Some("Networking"));
+}
+
+#[test]
+fn missing_required_errors() {
+    let t = task_with_args(&["package"]);
+    let err = xc_dev::runner::bind_args(&t, &[]).unwrap_err();
+    assert!(err.to_string().contains("expects"), "got: {err}");
+    assert!(err.to_string().contains("0"), "got: {err}");
+}
+
+#[test]
+fn extra_args_error() {
+    let t = task_with_args(&["package"]);
+    let err = xc_dev::runner::bind_args(&t, &["a".into(), "b".into()]).unwrap_err();
+    assert!(err.to_string().contains("got 2"), "got: {err}");
+}
+
+#[test]
+fn mixed_required_optional() {
+    let t = task_with_args(&["pkg", "config=Debug"]);
+    // Only required
+    let m = xc_dev::runner::bind_args(&t, &["Net".into()]).unwrap();
+    assert_eq!(m.get("pkg").map(String::as_str), Some("Net"));
+    assert_eq!(m.get("config").map(String::as_str), Some("Debug"));
+    // Both
+    let m = xc_dev::runner::bind_args(&t, &["Net".into(), "Release".into()]).unwrap();
+    assert_eq!(m.get("config").map(String::as_str), Some("Release"));
+}
+
+#[test]
+fn no_args_no_user_args() {
+    let t = task_with_args(&[]);
+    let m = xc_dev::runner::bind_args(&t, &[]).unwrap();
+    assert!(m.is_empty());
+}
