@@ -5,7 +5,36 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use crate::config::project::ProjectFile;
 use crate::config::simulator::SimulatorFile;
-use crate::error::Result;
+use crate::config::tasks::Tasks;
+use crate::error::{Result, XcDevError};
+
+const PROJECT_FIELD_NAMES: &[&str] = &[
+    "path", "scheme", "configuration", "bundle_id", "product_name", "min_ios_version",
+];
+
+pub fn validate_project(p: &ProjectFile) -> Result<()> {
+    for key in p.vars.keys() {
+        if auto::is_reserved(key) || PROJECT_FIELD_NAMES.contains(&key.as_str()) {
+            return Err(XcDevError::ReservedName {
+                name: key.clone(), location: "[vars] key",
+            });
+        }
+    }
+    Ok(())
+}
+
+pub fn validate_tasks(t: &Tasks) -> Result<()> {
+    for task in t.tasks.values() {
+        for a in &task.args {
+            if auto::is_reserved(&a.name) || PROJECT_FIELD_NAMES.contains(&a.name.as_str()) {
+                return Err(XcDevError::ReservedName {
+                    name: a.name.clone(), location: "task arg name",
+                });
+            }
+        }
+    }
+    Ok(())
+}
 
 pub struct Vars {
     auto: auto::AutoVars,
