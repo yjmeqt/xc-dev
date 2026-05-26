@@ -1,4 +1,4 @@
-mod error;
+use xc_dev::error;
 
 fn main() {
     if let Err(e) = run() {
