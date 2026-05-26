@@ -1,3 +1,6 @@
+> **Deprecated.** Superseded by [`xc-dev/`](../xc-dev/) in this repo. This Python tool
+> remains for projects that have not yet migrated. New projects should use `xc-dev`.
+
 # worktree-ios-dev-tool
 
 Per-worktree iOS build / simulator / test CLI. Each git worktree gets its own simulator(s) and derived-data directory so parallel feature branches never collide.
