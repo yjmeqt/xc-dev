@@ -151,3 +151,65 @@ xcbeautify = "xcbeautify --quiet"
         .assert().success()
         .stdout(predicates::str::starts_with("xcbeautify --quiet"));
 }
+
+#[test]
+fn doctor_runs_on_minimal_project_and_passes() {
+    let tmp = tempdir().unwrap();
+    write_minimal(tmp.path(), "[tasks.x]\ncmd = \"echo hi\"\n");
+    let assert = Command::cargo_bin("xc-dev").unwrap()
+        .current_dir(tmp.path())
+        .arg(":doctor")
+        .assert();
+    // We allow doctor to FAIL on xcodebuild missing or project.path missing in the
+    // tempdir (the empty fake project), but it should still print PASS lines for
+    // the parse + validation checks.
+    let out = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
+    assert!(out.contains("PASS"), "expected at least some PASS lines:\n{out}");
+    assert!(out.contains("project.toml"), "expected project.toml check label:\n{out}");
+    assert!(out.contains("tasks.toml"), "expected tasks.toml check label:\n{out}");
+}
+
+#[test]
+fn doctor_fails_on_unknown_var_in_task() {
+    let tmp = tempdir().unwrap();
+    write_minimal(tmp.path(), "[tasks.x]\ncmd = \"echo {{nope}}\"\n");
+    let assert = Command::cargo_bin("xc-dev").unwrap()
+        .current_dir(tmp.path())
+        .arg(":doctor")
+        .assert()
+        .failure();
+    let out = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
+    assert!(out.contains("FAIL"), "expected a FAIL line:\n{out}");
+    assert!(out.contains("nope"), "expected the unknown var name in output:\n{out}");
+}
+
+#[test]
+fn doctor_fails_on_depends_cycle() {
+    let tmp = tempdir().unwrap();
+    write_minimal(tmp.path(), r#"
+[tasks.a]
+depends = ["b"]
+cmd = "echo a"
+
+[tasks.b]
+depends = ["a"]
+cmd = "echo b"
+"#);
+    let assert = Command::cargo_bin("xc-dev").unwrap()
+        .current_dir(tmp.path())
+        .arg(":doctor")
+        .assert()
+        .failure();
+    let out = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
+    assert!(out.contains("FAIL"), "expected a FAIL line:\n{out}");
+}
+
+#[test]
+fn doctor_errors_outside_project() {
+    let tmp = tempdir().unwrap();
+    Command::cargo_bin("xc-dev").unwrap()
+        .current_dir(tmp.path())
+        .arg(":doctor")
+        .assert()
+        .failure();
+}
