@@ -213,3 +213,66 @@ fn doctor_errors_outside_project() {
         .assert()
         .failure();
 }
+
+#[test]
+fn init_creates_three_files() {
+    let tmp = tempdir().unwrap();
+    Command::cargo_bin("xc-dev").unwrap()
+        .current_dir(tmp.path())
+        .args([":proj", "init", "--path", "X.xcworkspace", "--scheme", "X", "--yes"])
+        .assert().success();
+    assert!(tmp.path().join(".xc-dev/project.toml").exists());
+    assert!(tmp.path().join(".xc-dev/simulator.toml").exists());
+    assert!(tmp.path().join(".xc-dev/tasks.toml").exists());
+}
+
+#[test]
+fn init_refuses_to_overwrite() {
+    let tmp = tempdir().unwrap();
+    std::fs::create_dir_all(tmp.path().join(".xc-dev")).unwrap();
+    std::fs::write(tmp.path().join(".xc-dev/project.toml"), "existing").unwrap();
+
+    Command::cargo_bin("xc-dev").unwrap()
+        .current_dir(tmp.path())
+        .args([":proj", "init", "--path", "X.xcworkspace", "--scheme", "X", "--yes"])
+        .assert().failure()
+        .stderr(predicates::str::contains("already exists"));
+}
+
+#[test]
+fn init_with_force_overwrites() {
+    let tmp = tempdir().unwrap();
+    std::fs::create_dir_all(tmp.path().join(".xc-dev")).unwrap();
+    std::fs::write(tmp.path().join(".xc-dev/project.toml"), "old contents").unwrap();
+
+    Command::cargo_bin("xc-dev").unwrap()
+        .current_dir(tmp.path())
+        .args([":proj", "init", "--path", "X.xcworkspace", "--scheme", "X", "--yes", "--force"])
+        .assert().success();
+    let s = std::fs::read_to_string(tmp.path().join(".xc-dev/project.toml")).unwrap();
+    assert!(s.contains("schema_version"), "expected new content, got: {s}");
+}
+
+#[test]
+fn init_writes_placeholder_when_flags_missing() {
+    let tmp = tempdir().unwrap();
+    Command::cargo_bin("xc-dev").unwrap()
+        .current_dir(tmp.path())
+        .args([":proj", "init"])
+        .assert().success();
+    let s = std::fs::read_to_string(tmp.path().join(".xc-dev/project.toml")).unwrap();
+    assert!(s.contains("REPLACE_ME"));
+}
+
+#[test]
+fn init_emits_starter_tasks_toml() {
+    let tmp = tempdir().unwrap();
+    Command::cargo_bin("xc-dev").unwrap()
+        .current_dir(tmp.path())
+        .args([":proj", "init", "--path", "X.xcworkspace", "--scheme", "X", "--yes"])
+        .assert().success();
+    let s = std::fs::read_to_string(tmp.path().join(".xc-dev/tasks.toml")).unwrap();
+    assert!(s.contains("[tasks.build]"), "starter tasks.toml should define a build task: {s}");
+    assert!(s.contains("{{scheme}}"));
+    assert!(s.contains("{{derived_data}}"));
+}
