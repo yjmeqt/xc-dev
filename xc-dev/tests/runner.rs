@@ -224,7 +224,7 @@ fn runs_chain_with_template_substitution() {
 args = ["who=world"]
 cmd = "echo {{scheme}} says hello {{who}}"
 "#);
-    let code = xc_dev::runner::run(tmp.path(), "greet", &[]).unwrap();
+    let code = xc_dev::runner::run(tmp.path(), "greet", &[], false).unwrap();
     assert_eq!(code, 0);
 }
 
@@ -239,7 +239,7 @@ cmd = "exit 3"
 depends = ["fail"]
 cmd = "echo should-not-run"
 "#);
-    let code = xc_dev::runner::run(tmp.path(), "after", &[]).unwrap();
+    let code = xc_dev::runner::run(tmp.path(), "after", &[], false).unwrap();
     assert_eq!(code, 3);
 }
 
@@ -249,7 +249,7 @@ fn unknown_task_reports_error() {
     write_minimal_project(tmp.path(), r#"[tasks.a]
 cmd = "echo a"
 "#);
-    let err = xc_dev::runner::run(tmp.path(), "nope", &[]).unwrap_err();
+    let err = xc_dev::runner::run(tmp.path(), "nope", &[], false).unwrap_err();
     assert!(matches!(err, xc_dev::error::XcDevError::UnknownTask(_)));
 }
 
@@ -266,14 +266,14 @@ args = ["x=ok"]
 depends = ["dep"]
 cmd = "test \"{{x}}\" = override"
 "#);
-    let code = xc_dev::runner::run(tmp.path(), "main", &["override".into()]).unwrap();
+    let code = xc_dev::runner::run(tmp.path(), "main", &["override".into()], false).unwrap();
     assert_eq!(code, 0);
 }
 
 #[test]
 fn missing_xc_dev_dir_errors() {
     let tmp = tempfile::tempdir().unwrap();
-    let err = xc_dev::runner::run(tmp.path(), "build", &[]).unwrap_err();
+    let err = xc_dev::runner::run(tmp.path(), "build", &[], false).unwrap_err();
     assert!(matches!(err, xc_dev::error::XcDevError::NoProjectDir(_)));
 }
 
@@ -283,6 +283,70 @@ fn unknown_var_in_cmd_errors_at_runtime() {
     write_minimal_project(tmp.path(), r#"[tasks.bad]
 cmd = "echo {{nope}}"
 "#);
-    let err = xc_dev::runner::run(tmp.path(), "bad", &[]).unwrap_err();
+    let err = xc_dev::runner::run(tmp.path(), "bad", &[], false).unwrap_err();
     assert!(matches!(err, xc_dev::error::XcDevError::UnknownVar { .. }));
+}
+
+#[test]
+fn verbose_echoes_command_to_stderr() {
+    use assert_cmd::Command;
+    let tmp = tempfile::tempdir().unwrap();
+    let dotdir = tmp.path().join(".xc-dev");
+    std::fs::create_dir_all(&dotdir).unwrap();
+    std::fs::write(dotdir.join("project.toml"), r#"
+schema_version = 1
+[project]
+path = "X.xcworkspace"
+scheme = "Hello"
+configuration = "Debug"
+bundle_id = "com.x"
+product_name = "X"
+min_ios_version = "26.0"
+"#).unwrap();
+    std::fs::write(dotdir.join("simulator.toml"), "schema_version = 1\n").unwrap();
+    std::fs::write(dotdir.join("tasks.toml"), r#"
+[tasks.greet]
+cmd = "echo hello from {{scheme}}"
+"#).unwrap();
+
+    let assert = Command::cargo_bin("xc-dev").unwrap()
+        .current_dir(tmp.path())
+        .args(["-v", "greet"])
+        .assert()
+        .success();
+    let stderr = String::from_utf8(assert.get_output().stderr.clone()).unwrap();
+    assert!(stderr.contains("+ greet"), "expected `+ greet` line in stderr:\n{stderr}");
+    assert!(stderr.contains("+ echo hello from Hello"),
+            "expected the expanded cmd echoed to stderr:\n{stderr}");
+}
+
+#[test]
+fn no_verbose_does_not_echo() {
+    use assert_cmd::Command;
+    let tmp = tempfile::tempdir().unwrap();
+    let dotdir = tmp.path().join(".xc-dev");
+    std::fs::create_dir_all(&dotdir).unwrap();
+    std::fs::write(dotdir.join("project.toml"), r#"
+schema_version = 1
+[project]
+path = "X.xcworkspace"
+scheme = "Hello"
+configuration = "Debug"
+bundle_id = "com.x"
+product_name = "X"
+min_ios_version = "26.0"
+"#).unwrap();
+    std::fs::write(dotdir.join("simulator.toml"), "schema_version = 1\n").unwrap();
+    std::fs::write(dotdir.join("tasks.toml"), r#"
+[tasks.silent]
+cmd = "true"
+"#).unwrap();
+
+    let assert = Command::cargo_bin("xc-dev").unwrap()
+        .current_dir(tmp.path())
+        .args(["silent"])
+        .assert()
+        .success();
+    let stderr = String::from_utf8(assert.get_output().stderr.clone()).unwrap();
+    assert!(!stderr.contains("+ "), "expected no `+ ` prefix on stderr without -v:\n{stderr}");
 }
