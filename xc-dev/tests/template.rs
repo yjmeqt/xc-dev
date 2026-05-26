@@ -149,3 +149,45 @@ fn trims_whitespace_inside_braces() {
     let out = template::render("{{ scheme }}", "x", &r).unwrap();
     assert_eq!(out, "X");
 }
+
+#[test]
+fn git_branch_in_real_repo() {
+    // Use the actual repo we're testing in (the worktree).
+    let cwd = std::env::current_dir().unwrap();
+    let out = std::process::Command::new("git").args(["rev-parse", "--show-toplevel"])
+        .current_dir(&cwd).output().unwrap();
+    if !out.status.success() { return; } // not in a git repo; skip
+    let project_root = std::path::PathBuf::from(
+        String::from_utf8(out.stdout).unwrap().trim()
+    );
+    let v = Vars::build(project_root.clone(), pf(), sf(), BTreeMap::new(), "t").unwrap();
+    let b = v.try_resolve("git_branch").unwrap().expect("git_branch should resolve");
+    assert!(!b.is_empty(), "git_branch was empty");
+    let sha = v.try_resolve("git_sha").unwrap().expect("git_sha should resolve");
+    assert!(sha.len() >= 7 && sha.len() <= 40, "git_sha length suspicious: {sha:?}");
+    let main = v.try_resolve("git_main_root").unwrap().expect("git_main_root should resolve");
+    assert!(!main.is_empty());
+}
+
+#[test]
+fn git_unavailable_in_non_git_dir() {
+    let tmp = tempfile::tempdir().unwrap();
+    let v = Vars::build(tmp.path().to_path_buf(), pf(), sf(), BTreeMap::new(), "t").unwrap();
+    let r = v.try_resolve("git_branch");
+    assert!(
+        matches!(r, Err(xc_dev::error::XcDevError::VarUnavailable { .. })),
+        "expected VarUnavailable, got {r:?}"
+    );
+    // resolve() (infallible) should silently return None:
+    assert_eq!(v.resolve("git_branch"), None);
+}
+
+#[test]
+fn git_unknown_name_returns_ok_none() {
+    let cwd = std::env::current_dir().unwrap();
+    let v = Vars::build(cwd, pf(), sf(), BTreeMap::new(), "t").unwrap();
+    // "git_foo" isn't one of the supported names; try_resolve should return Ok(None)
+    // (not VarUnavailable), so the template engine reports UnknownVar instead.
+    let r = v.try_resolve("git_foo").unwrap();
+    assert!(r.is_none());
+}
