@@ -153,3 +153,98 @@ cmd = "xcrun simctl launch x y"
     assert_eq!(r.cwd.as_deref(), Some("ios"));
     assert_eq!(r.env.get("FOO").unwrap(), "bar");
 }
+
+#[test]
+fn vars_reserved_name_rejected() {
+    let toml = r#"
+schema_version = 1
+[project]
+path = "X.xcworkspace"
+scheme = "X"
+configuration = "Debug"
+bundle_id = "x"
+product_name = "X"
+min_ios_version = "26.0"
+
+[vars]
+git_branch = "naughty"
+"#;
+    let p = xc_dev::config::project::parse(toml).unwrap();
+    let err = xc_dev::vars::validate_project(&p).unwrap_err();
+    let s = err.to_string();
+    assert!(s.contains("reserved name `git_branch`"), "unexpected error: {s}");
+}
+
+#[test]
+fn vars_project_field_collision_rejected() {
+    let toml = r#"
+schema_version = 1
+[project]
+path = "X.xcworkspace"
+scheme = "X"
+configuration = "Debug"
+bundle_id = "x"
+product_name = "X"
+min_ios_version = "26.0"
+
+[vars]
+scheme = "override"
+"#;
+    let p = xc_dev::config::project::parse(toml).unwrap();
+    let err = xc_dev::vars::validate_project(&p).unwrap_err();
+    let s = err.to_string();
+    assert!(s.contains("reserved name `scheme`"), "unexpected error: {s}");
+}
+
+#[test]
+fn args_reserved_name_rejected() {
+    let toml = r#"
+[tasks.x]
+args = ["scheme"]
+cmd = "echo {{scheme}}"
+"#;
+    let t = xc_dev::config::tasks::parse(toml).unwrap();
+    let err = xc_dev::vars::validate_tasks(&t).unwrap_err();
+    let s = err.to_string();
+    assert!(s.contains("reserved name `scheme`"), "unexpected error: {s}");
+}
+
+#[test]
+fn args_auto_var_name_rejected() {
+    let toml = r#"
+[tasks.x]
+args = ["git_branch"]
+cmd = "echo {{git_branch}}"
+"#;
+    let t = xc_dev::config::tasks::parse(toml).unwrap();
+    let err = xc_dev::vars::validate_tasks(&t).unwrap_err();
+    let s = err.to_string();
+    assert!(s.contains("reserved name `git_branch`"), "unexpected error: {s}");
+}
+
+#[test]
+fn validation_passes_for_clean_config() {
+    let toml = r#"
+schema_version = 1
+[project]
+path = "X.xcworkspace"
+scheme = "X"
+configuration = "Debug"
+bundle_id = "x"
+product_name = "X"
+min_ios_version = "26.0"
+
+[vars]
+xcbeautify = "xcb"
+"#;
+    let p = xc_dev::config::project::parse(toml).unwrap();
+    xc_dev::vars::validate_project(&p).unwrap();
+
+    let t_toml = r#"
+[tasks.build]
+args = ["config=Debug"]
+cmd = "echo"
+"#;
+    let t = xc_dev::config::tasks::parse(t_toml).unwrap();
+    xc_dev::vars::validate_tasks(&t).unwrap();
+}
