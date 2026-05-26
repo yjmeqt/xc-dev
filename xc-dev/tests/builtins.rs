@@ -83,3 +83,71 @@ fn list_errors_outside_project() {
         .failure()
         .stderr(predicates::str::contains("no .xc-dev/"));
 }
+
+#[test]
+fn get_project_field() {
+    let tmp = tempdir().unwrap();
+    write_minimal(tmp.path(), "[tasks.x]\ncmd = \"echo\"\n");
+    Command::cargo_bin("xc-dev").unwrap()
+        .current_dir(tmp.path()).args([":get", "scheme"])
+        .assert().success()
+        .stdout(predicates::str::starts_with("X"));
+}
+
+#[test]
+fn get_derived_data_default() {
+    let tmp = tempdir().unwrap();
+    write_minimal(tmp.path(), "[tasks.x]\ncmd = \"echo\"\n");
+    Command::cargo_bin("xc-dev").unwrap()
+        .current_dir(tmp.path()).args([":get", "derived_data"])
+        .assert().success()
+        .stdout(predicates::str::contains(".xc-dev/DerivedData"));
+}
+
+#[test]
+fn get_app_path_uses_product_name_and_config() {
+    let tmp = tempdir().unwrap();
+    write_minimal(tmp.path(), "[tasks.x]\ncmd = \"echo\"\n");
+    Command::cargo_bin("xc-dev").unwrap()
+        .current_dir(tmp.path()).args([":get", "app_path"])
+        .assert().success()
+        .stdout(predicates::str::contains("Debug-iphonesimulator/X.app"));
+}
+
+#[test]
+fn get_unknown_errors() {
+    let tmp = tempdir().unwrap();
+    write_minimal(tmp.path(), "[tasks.x]\ncmd = \"echo\"\n");
+    Command::cargo_bin("xc-dev").unwrap()
+        .current_dir(tmp.path()).args([":get", "nope"])
+        .assert().failure()
+        .stderr(predicates::str::contains("unknown variable"));
+}
+
+#[test]
+fn get_user_var() {
+    let tmp = tempdir().unwrap();
+    // Override project.toml to add [vars]
+    let dotdir = tmp.path().join(".xc-dev");
+    std::fs::create_dir_all(&dotdir).unwrap();
+    std::fs::write(dotdir.join("project.toml"), r#"
+schema_version = 1
+[project]
+path = "X.xcworkspace"
+scheme = "X"
+configuration = "Debug"
+bundle_id = "com.x"
+product_name = "X"
+min_ios_version = "26.0"
+
+[vars]
+xcbeautify = "xcbeautify --quiet"
+"#).unwrap();
+    std::fs::write(dotdir.join("simulator.toml"), "schema_version = 1\n").unwrap();
+    std::fs::write(dotdir.join("tasks.toml"), "[tasks.x]\ncmd=\"echo\"\n").unwrap();
+
+    Command::cargo_bin("xc-dev").unwrap()
+        .current_dir(tmp.path()).args([":get", "xcbeautify"])
+        .assert().success()
+        .stdout(predicates::str::starts_with("xcbeautify --quiet"));
+}
