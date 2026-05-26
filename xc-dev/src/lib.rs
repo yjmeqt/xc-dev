@@ -1,5 +1,6 @@
 pub mod config;
 pub mod error;
+pub mod exec;
 pub mod paths;
 pub mod runner;
 pub mod template;
