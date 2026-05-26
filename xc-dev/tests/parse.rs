@@ -89,3 +89,67 @@ fn parses_empty_simulator_file() {
     let s = xc_dev::config::simulator::parse(toml).unwrap();
     assert!(s.sim.is_empty());
 }
+
+use xc_dev::config::tasks;
+
+#[test]
+fn parses_required_and_optional_args() {
+    let toml = r#"
+[tasks.build]
+args = ["config=Debug"]
+cmd = "xcodebuild build"
+
+[tasks.test-package]
+args = ["package"]
+cmd = "swift test --package-path Packages/{{package}}"
+"#;
+    let t = tasks::parse(toml).unwrap();
+    let build = &t.tasks["build"];
+    assert_eq!(build.args.len(), 1);
+    assert_eq!(build.args[0].name, "config");
+    assert_eq!(build.args[0].default.as_deref(), Some("Debug"));
+
+    let testpkg = &t.tasks["test-package"];
+    assert_eq!(testpkg.args[0].name, "package");
+    assert!(testpkg.args[0].default.is_none());
+}
+
+#[test]
+fn rejects_required_after_optional() {
+    let toml = r#"
+[tasks.x]
+args = ["a=1", "b"]
+cmd = "echo"
+"#;
+    let err = tasks::parse(toml).unwrap_err();
+    let s = err.to_string();
+    assert!(s.contains("required arg") && s.contains("after optional"),
+            "unexpected error message: {s}");
+}
+
+#[test]
+fn rejects_colon_prefixed_task_name() {
+    let toml = r#"
+[tasks.":foo"]
+cmd = "echo"
+"#;
+    let err = tasks::parse(toml).unwrap_err();
+    let s = err.to_string();
+    assert!(s.contains("cannot start with"), "unexpected error: {s}");
+}
+
+#[test]
+fn parses_depends_and_env_and_cwd() {
+    let toml = r#"
+[tasks.run]
+depends = ["build"]
+cwd = "ios"
+env = { FOO = "bar" }
+cmd = "xcrun simctl launch x y"
+"#;
+    let t = tasks::parse(toml).unwrap();
+    let r = &t.tasks["run"];
+    assert_eq!(r.depends, vec!["build".to_string()]);
+    assert_eq!(r.cwd.as_deref(), Some("ios"));
+    assert_eq!(r.env.get("FOO").unwrap(), "bar");
+}
