@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::path::Path;
 use crate::error::Result;
@@ -73,17 +74,35 @@ pub fn run(cwd: &Path) -> Result<i32> {
             Ok(_) => println!("  PASS  task `{name}` depends: ok"),
             Err(e) => { println!("  FAIL  task `{name}` depends: {e}"); failed = true; }
         }
-        let args = runner::bind_args(task, &[]).unwrap_or_default();
+        // For the var-check we substitute a placeholder for every declared arg
+        // (required or optional) so that tasks with required args are not
+        // falsely reported as FAIL due to a missing arg value.
+        let args: BTreeMap<String, String> = task.args.iter()
+            .map(|a| (a.name.clone(),
+                      a.default.clone().unwrap_or_else(|| "<placeholder>".to_string())))
+            .collect();
         let vbuilt = Vars::build(root.clone(), pf.clone(), sf.clone(), args, name);
         match vbuilt {
             Err(e) => { println!("  FAIL  task `{name}` vars: {e}"); failed = true; continue; }
             Ok(v) => {
+                let pending_err: RefCell<Option<crate::error::XcDevError>> = RefCell::new(None);
                 let res = template::render(&task.cmd, name, &|n| {
-                    v.try_resolve(n).ok().flatten()
+                    match v.try_resolve(n) {
+                        Ok(some) => some,
+                        Err(e) => {
+                            *pending_err.borrow_mut() = Some(e);
+                            None
+                        }
+                    }
                 });
-                match res {
-                    Ok(_) => println!("  PASS  task `{name}` vars: ok"),
-                    Err(e) => { println!("  FAIL  task `{name}` vars: {e}"); failed = true; }
+                if let Some(e) = pending_err.into_inner() {
+                    println!("  FAIL  task `{name}` vars: {e}");
+                    failed = true;
+                } else {
+                    match res {
+                        Ok(_) => println!("  PASS  task `{name}` vars: ok"),
+                        Err(e) => { println!("  FAIL  task `{name}` vars: {e}"); failed = true; }
+                    }
                 }
             }
         }
