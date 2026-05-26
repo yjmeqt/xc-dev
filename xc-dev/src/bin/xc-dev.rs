@@ -1,13 +1,28 @@
-use xc_dev::error;
+use xc_dev::{cli, builtins, runner};
 
 fn main() {
-    if let Err(e) = run() {
-        eprintln!("xc-dev: {e}");
-        std::process::exit(1);
-    }
+    let argv: Vec<String> = std::env::args().collect();
+    let inv = match cli::parse(&argv) {
+        Ok(i) => i,
+        Err(e) => { eprintln!("xc-dev: {e}"); std::process::exit(2); }
+    };
+    let exit_code = run(inv);
+    std::process::exit(exit_code);
 }
 
-fn run() -> error::Result<()> {
-    println!("xc-dev v0.1.0 (stub)");
-    Ok(())
+fn run(inv: cli::Invocation) -> i32 {
+    let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    let result: xc_dev::error::Result<i32> = match inv.command {
+        cli::Command::List => builtins::list::run(&cwd),
+        cli::Command::Get { key } => builtins::get::run(&cwd, &key),
+        cli::Command::Doctor => builtins::doctor::run(&cwd),
+        cli::Command::ProjInit { force, yes, path, scheme } =>
+            builtins::init::run(&cwd, force, yes, path.as_deref(), scheme.as_deref()),
+        cli::Command::Task { name, args } => runner::run(&cwd, &name, &args),
+    };
+    let _ = inv.verbose; // Task 20 will wire this through.
+    match result {
+        Ok(code) => code,
+        Err(e) => { eprintln!("xc-dev: {e}"); 1 }
+    }
 }
