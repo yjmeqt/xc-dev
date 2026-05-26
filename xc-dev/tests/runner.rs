@@ -198,3 +198,91 @@ fn no_args_no_user_args() {
     let m = xc_dev::runner::bind_args(&t, &[]).unwrap();
     assert!(m.is_empty());
 }
+
+fn write_minimal_project(dir: &std::path::Path, tasks_toml: &str) {
+    let dotdir = dir.join(".xc-dev");
+    std::fs::create_dir_all(&dotdir).unwrap();
+    std::fs::write(dotdir.join("project.toml"), r#"
+schema_version = 1
+[project]
+path = "X.xcworkspace"
+scheme = "Hello"
+configuration = "Debug"
+bundle_id = "com.x"
+product_name = "X"
+min_ios_version = "26.0"
+"#).unwrap();
+    std::fs::write(dotdir.join("simulator.toml"), "schema_version = 1\n").unwrap();
+    std::fs::write(dotdir.join("tasks.toml"), tasks_toml).unwrap();
+}
+
+#[test]
+fn runs_chain_with_template_substitution() {
+    let tmp = tempfile::tempdir().unwrap();
+    write_minimal_project(tmp.path(), r#"
+[tasks.greet]
+args = ["who=world"]
+cmd = "echo {{scheme}} says hello {{who}}"
+"#);
+    let code = xc_dev::runner::run(tmp.path(), "greet", &[]).unwrap();
+    assert_eq!(code, 0);
+}
+
+#[test]
+fn chain_stops_on_failure() {
+    let tmp = tempfile::tempdir().unwrap();
+    write_minimal_project(tmp.path(), r#"
+[tasks.fail]
+cmd = "exit 3"
+
+[tasks.after]
+depends = ["fail"]
+cmd = "echo should-not-run"
+"#);
+    let code = xc_dev::runner::run(tmp.path(), "after", &[]).unwrap();
+    assert_eq!(code, 3);
+}
+
+#[test]
+fn unknown_task_reports_error() {
+    let tmp = tempfile::tempdir().unwrap();
+    write_minimal_project(tmp.path(), r#"[tasks.a]
+cmd = "echo a"
+"#);
+    let err = xc_dev::runner::run(tmp.path(), "nope", &[]).unwrap_err();
+    assert!(matches!(err, xc_dev::error::XcDevError::UnknownTask(_)));
+}
+
+#[test]
+fn root_args_passed_dep_uses_defaults() {
+    let tmp = tempfile::tempdir().unwrap();
+    write_minimal_project(tmp.path(), r#"
+[tasks.dep]
+args = ["mode=quiet"]
+cmd = "test \"{{mode}}\" = quiet"
+
+[tasks.main]
+args = ["x=ok"]
+depends = ["dep"]
+cmd = "test \"{{x}}\" = override"
+"#);
+    let code = xc_dev::runner::run(tmp.path(), "main", &["override".into()]).unwrap();
+    assert_eq!(code, 0);
+}
+
+#[test]
+fn missing_xc_dev_dir_errors() {
+    let tmp = tempfile::tempdir().unwrap();
+    let err = xc_dev::runner::run(tmp.path(), "build", &[]).unwrap_err();
+    assert!(matches!(err, xc_dev::error::XcDevError::NoProjectDir(_)));
+}
+
+#[test]
+fn unknown_var_in_cmd_errors_at_runtime() {
+    let tmp = tempfile::tempdir().unwrap();
+    write_minimal_project(tmp.path(), r#"[tasks.bad]
+cmd = "echo {{nope}}"
+"#);
+    let err = xc_dev::runner::run(tmp.path(), "bad", &[]).unwrap_err();
+    assert!(matches!(err, xc_dev::error::XcDevError::UnknownVar { .. }));
+}

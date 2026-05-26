@@ -1,6 +1,9 @@
 use std::collections::BTreeMap;
+use std::path::Path;
 use crate::config::tasks::{Task, Tasks};
 use crate::error::{Result, XcDevError};
+use crate::{config, paths, template, exec};
+use crate::vars::{self, Vars};
 
 /// Topologically order all tasks that need to run to execute `root`.
 /// Returns dependencies first; `root` last. Each task appears exactly once.
@@ -42,6 +45,41 @@ pub fn bind_args(task: &Task, user_args: &[String]) -> Result<BTreeMap<String, S
         map.insert(spec.name.clone(), value);
     }
     Ok(map)
+}
+
+/// Top-level entry: from a starting directory, find the project,
+/// resolve the dependency chain for `task_name`, and execute each.
+/// Returns the exit code of the last task run (0 if the chain succeeded).
+pub fn run(start_dir: &Path, task_name: &str, user_args: &[String]) -> Result<i32> {
+    let root = paths::find_project_root(start_dir)?;
+    let dotdir = paths::xc_dev_dir(&root);
+    let pf = config::project::load(&dotdir.join("project.toml"))?;
+    let sf = config::simulator::load(&dotdir.join("simulator.toml"))?;
+    let tasks = config::tasks::load(&dotdir.join("tasks.toml"))?;
+
+    vars::validate_project(&pf)?;
+    vars::validate_tasks(&tasks)?;
+
+    let order = resolve_chain(task_name, &tasks)?;
+
+    let mut last_code = 0;
+    for name in &order {
+        let task = tasks.tasks.get(name).expect("resolve_chain only returns known tasks");
+        let args_for_task = if name == task_name {
+            bind_args(task, user_args)?
+        } else {
+            bind_args(task, &[])?
+        };
+        let v = Vars::build(root.clone(), pf.clone(), sf.clone(), args_for_task, name)?;
+        let rendered = template::render(&task.cmd, name, &|n| {
+            v.try_resolve(n).ok().flatten()
+        })?;
+        let cwd = task.cwd.as_ref().map(|c| root.join(c));
+        let code = exec::run_script(&rendered, cwd.as_deref(), &task.env)?;
+        last_code = code;
+        if code != 0 { break; }
+    }
+    Ok(last_code)
 }
 
 fn visit(
