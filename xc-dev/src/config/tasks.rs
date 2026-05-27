@@ -22,6 +22,8 @@ struct RawTask {
     cwd: Option<String>,
     #[serde(default)]
     env: BTreeMap<String, String>,
+    #[serde(default)]
+    configuration: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -39,6 +41,7 @@ pub struct Task {
     pub desc: Option<String>,
     pub cwd: Option<String>,
     pub env: BTreeMap<String, String>,
+    pub configuration: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -69,6 +72,7 @@ pub fn parse(s: &str) -> Result<Tasks> {
                 desc: raw_task.desc,
                 cwd: raw_task.cwd,
                 env: raw_task.env,
+                configuration: raw_task.configuration,
             },
         );
     }
