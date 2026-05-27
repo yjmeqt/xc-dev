@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "worktree-ios-dev": {
+      "source": "yjmeqt/worktree-ios-dev-tool",
+      "sourceType": "github",
+      "skillPath": "skills/worktree-ios-dev/SKILL.md",
+      "computedHash": "87bc3b1cf9ea5f7865d59e5d84f920e0ae5f6300f2e18d017a84bc2fd04842fe"
+    }
+  }
+}
