@@ -1,10 +1,10 @@
-import SwiftUI
+// HelloDemo — xc-dev test fixture. See ../README.md.
+//
+// This file exists only so the Xcode project has a target with sources;
+// `xcodebuild -list -json` and `-showBuildSettings -json` (the only commands
+// our tests run) resolve project metadata without compiling Swift.
+import Foundation
 
-@main
-struct HelloDemoApp: App {
-    var body: some Scene {
-        WindowGroup {
-            Text("Hello, demo")
-        }
-    }
+enum HelloDemo {
+    static let greeting = "Hello, demo"
 }
