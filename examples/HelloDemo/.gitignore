@@ -1,0 +1,6 @@
+# Xcode user-specific data (generated per-developer, not part of the fixture)
+HelloDemo.xcodeproj/xcuserdata/
+HelloDemo.xcodeproj/project.xcworkspace/xcuserdata/
+
+# Don't commit the xc-dev config — tests create it in a tempdir
+.xc-dev/
