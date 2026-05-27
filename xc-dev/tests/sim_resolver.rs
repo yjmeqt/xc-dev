@@ -31,7 +31,10 @@ fn first_ios_runtime() -> Option<String> {
     for rt in runtimes {
         let name = rt.get("name")?.as_str().unwrap_or("");
         let id = rt.get("identifier")?.as_str().unwrap_or("");
-        let available = rt.get("isAvailable").and_then(|v| v.as_bool()).unwrap_or(false);
+        let available = rt
+            .get("isAvailable")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
         if available && name.starts_with("iOS") && !id.is_empty() {
             return Some(name.to_string());
         }
@@ -53,7 +56,10 @@ fn find_iphone_device_type() -> Option<String> {
     // Prefer "iPhone 16" or fall back to the first iPhone that has no suffix like "(Plus)"
     let preferred = ["iPhone 16", "iPhone 15", "iPhone 14"];
     for pref in &preferred {
-        if types.iter().any(|dt| dt.get("name").and_then(|n| n.as_str()) == Some(pref)) {
+        if types
+            .iter()
+            .any(|dt| dt.get("name").and_then(|n| n.as_str()) == Some(pref))
+        {
             return Some(pref.to_string());
         }
     }
@@ -189,17 +195,22 @@ fn integration_resolve_and_cache() {
     assert!(!udid1.is_empty(), "UDID should not be empty");
 
     // Register the RAII cleanup guard.
-    let _guard = SimGuard { udid: udid1.clone() };
+    let _guard = SimGuard {
+        udid: udid1.clone(),
+    };
 
     eprintln!("integration_resolve_and_cache: created UDID={udid1}");
 
     // Verify the cache file was written.
     let cache_path = xc_dev_dir.join(".sim-cache.json");
-    assert!(cache_path.exists(), ".sim-cache.json should exist after first resolve");
+    assert!(
+        cache_path.exists(),
+        ".sim-cache.json should exist after first resolve"
+    );
 
     let cache_raw = std::fs::read_to_string(&cache_path).unwrap();
-    let cache_map: HashMap<String, String> = serde_json::from_str(&cache_raw)
-        .expect("cache file should be valid JSON");
+    let cache_map: HashMap<String, String> =
+        serde_json::from_str(&cache_raw).expect("cache file should be valid JSON");
     assert_eq!(
         cache_map.get(&sim_name).map(String::as_str),
         Some(udid1.as_str()),
@@ -211,7 +222,10 @@ fn integration_resolve_and_cache() {
     let udid2 = resolver2
         .resolve(&sim_name, &device, &runtime)
         .expect("second resolve should succeed");
-    assert_eq!(udid1, udid2, "second resolve should return the same UDID (cache hit)");
+    assert_eq!(
+        udid1, udid2,
+        "second resolve should return the same UDID (cache hit)"
+    );
 
     eprintln!("integration_resolve_and_cache: PASS (UDID={udid1})");
     // _guard drops here, deleting the simulator.
@@ -302,7 +316,9 @@ min_ios_version = "26.0"
     assert!(!udid1.is_empty(), "UDID should not be empty");
 
     // RAII cleanup.
-    let _guard = SimGuard { udid: udid1.clone() };
+    let _guard = SimGuard {
+        udid: udid1.clone(),
+    };
 
     eprintln!("integration_get_sim_id_e2e: UDID={udid1}");
 
