@@ -16,20 +16,16 @@ pub struct Project {
     pub path: String,
     pub scheme: String,
     pub configuration: String,
-    pub bundle_id: String,
-    pub product_name: String,
     #[serde(default)]
     pub derived_data: Option<String>,
     #[serde(default)]
-    pub configurations: BTreeMap<String, ConfigurationOverrides>,
+    pub configurations: BTreeMap<String, Configuration>,
 }
 
-#[derive(Debug, Clone, Deserialize, Default)]
-pub struct ConfigurationOverrides {
-    #[serde(default)]
-    pub bundle_id: Option<String>,
-    #[serde(default)]
-    pub product_name: Option<String>,
+#[derive(Debug, Clone, Deserialize)]
+pub struct Configuration {
+    pub bundle_id: String,
+    pub product_name: String,
 }
 
 pub fn parse(s: &str) -> Result<ProjectFile> {
