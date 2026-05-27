@@ -58,6 +58,17 @@ pub fn run(cwd: &Path) -> Result<i32> {
         }
     };
 
+    // Validate sim entries: warn if neither id nor device is set.
+    for (label, sim) in &sf.sim {
+        if sim.id.is_none() && sim.device.is_none() {
+            println!(
+                "  WARN  sim.{label}: neither `id` nor `device` is set — \
+                 `{{{{sim_id}}}}` will fail at runtime; set `device` (for auto-resolution) \
+                 or `id` (to pin a UDID)"
+            );
+        }
+    }
+
     let tasks = match config::tasks::load(&dotdir.join("tasks.toml")) {
         Ok(t) => {
             println!("  PASS  tasks.toml: {} task(s)", t.tasks.len());
