@@ -27,7 +27,7 @@ that has `xcodebuild` — no `xcodegen` required at CI time.
 
 ## What the integration test checks
 
-`xc-dev/tests/init_fixture.rs` copies this directory into a temp dir and runs
+`crates/xc-dev/tests/init_fixture.rs` copies this directory into a temp dir and runs
 `xc-dev :proj init --yes`. It asserts that the generated `.xc-dev/project.toml`
 contains:
 

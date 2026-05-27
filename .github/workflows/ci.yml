@@ -10,9 +10,6 @@ jobs:
   xc-dev:
     name: xc-dev (macOS, Xcode)
     runs-on: macos-latest
-    defaults:
-      run:
-        working-directory: xc-dev
     steps:
       - uses: actions/checkout@v4
 
@@ -29,8 +26,8 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            xc-dev/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('xc-dev/Cargo.lock') }}
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
 
@@ -49,7 +46,7 @@ jobs:
       - name: Smoke — :proj init autodetect on the HelloDemo fixture
         working-directory: examples/HelloDemo
         run: |
-          ../../xc-dev/target/debug/xc-dev :proj init --yes
+          ../../target/debug/xc-dev :proj init --yes
           cat .xc-dev/project.toml
           grep -q 'scheme           = "HelloDemo"'           .xc-dev/project.toml
           grep -q 'bundle_id        = "com.example.HelloDemo"' .xc-dev/project.toml
