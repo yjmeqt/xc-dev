@@ -42,8 +42,3 @@ hard-coded verbs. New work happens in `xc-dev/`; this directory is preserved for
 projects that haven't migrated.
 
 See [`worktree_ios_dev_tool/README.md`](worktree_ios_dev_tool/README.md) for usage.
-
-## Spec / plan
-
-- Design: [`docs/superpowers/specs/2026-05-26-xc-dev-v2-design.md`](docs/superpowers/specs/2026-05-26-xc-dev-v2-design.md)
-- Implementation plan: [`docs/superpowers/plans/2026-05-26-xc-dev-v2.md`](docs/superpowers/plans/2026-05-26-xc-dev-v2.md)
