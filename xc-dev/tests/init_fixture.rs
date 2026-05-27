@@ -54,10 +54,15 @@ fn init_autodetects_against_real_xcodeproj_fixture() {
 
     let toml =
         std::fs::read_to_string(tmp.path().join(".xc-dev/project.toml")).unwrap();
+
+    // Both .xcodeproj and .xcworkspace are present in the fixture; workspace must win.
     assert!(
-        toml.contains(r#"path             = "HelloDemo.xcodeproj""#)
-            || toml.contains(r#"path             = "HelloDemo.xcworkspace""#),
-        "expected detected path in:\n{toml}"
+        toml.contains(r#"path             = "HelloDemo.xcworkspace""#),
+        "expected workspace to be preferred over project in:\n{toml}"
+    );
+    assert!(
+        !toml.contains(r#"path             = "HelloDemo.xcodeproj""#),
+        "expected .xcodeproj NOT to be selected when .xcworkspace is present:\n{toml}"
     );
     assert!(
         toml.contains(r#"scheme           = "HelloDemo""#),
