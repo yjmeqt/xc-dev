@@ -51,6 +51,10 @@ pub struct Vars {
     git: git::GitVars,
     #[allow(dead_code)]
     task_name: String,
+    effective_config: String,
+    effective_bundle_id: String,
+    effective_product_name: String,
+    effective_min_ios_version: String,
 }
 
 impl Vars {
@@ -60,8 +64,26 @@ impl Vars {
         simulator: SimulatorFile,
         args: BTreeMap<String, String>,
         task_name: &str,
+        effective_config: String,
     ) -> Result<Self> {
-        let auto = auto::AutoVars::build(project_root.clone(), &project);
+        // Resolve per-config overrides
+        let overrides = project.project.configurations.get(&effective_config);
+        let effective_bundle_id = overrides
+            .and_then(|o| o.bundle_id.clone())
+            .unwrap_or_else(|| project.project.bundle_id.clone());
+        let effective_product_name = overrides
+            .and_then(|o| o.product_name.clone())
+            .unwrap_or_else(|| project.project.product_name.clone());
+        let effective_min_ios_version = overrides
+            .and_then(|o| o.min_ios_version.clone())
+            .unwrap_or_else(|| project.project.min_ios_version.clone());
+
+        let auto = auto::AutoVars::build(
+            project_root.clone(),
+            &project,
+            &effective_config,
+            &effective_product_name,
+        );
         let git = git::GitVars::new(project_root);
         Ok(Self {
             auto,
@@ -70,6 +92,10 @@ impl Vars {
             args,
             git,
             task_name: task_name.to_string(),
+            effective_config,
+            effective_bundle_id,
+            effective_product_name,
+            effective_min_ios_version,
         })
     }
 
@@ -146,10 +172,10 @@ impl Vars {
         Some(match name {
             "path" => p.path.clone(),
             "scheme" => p.scheme.clone(),
-            "configuration" => p.configuration.clone(),
-            "bundle_id" => p.bundle_id.clone(),
-            "product_name" => p.product_name.clone(),
-            "min_ios_version" => p.min_ios_version.clone(),
+            "configuration" => self.effective_config.clone(),
+            "bundle_id" => self.effective_bundle_id.clone(),
+            "product_name" => self.effective_product_name.clone(),
+            "min_ios_version" => self.effective_min_ios_version.clone(),
             _ => return None,
         })
     }
