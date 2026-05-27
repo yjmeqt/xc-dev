@@ -26,6 +26,13 @@ pub fn validate_project(p: &ProjectFile) -> Result<()> {
             });
         }
     }
+    // The default configuration must have a [project.configurations.<name>] block.
+    let default_cfg = &p.project.configuration;
+    if !p.project.configurations.contains_key(default_cfg.as_str()) {
+        return Err(XcDevError::Other(format!(
+            "default configuration `{default_cfg}` has no [project.configurations.{default_cfg}] block"
+        )));
+    }
     Ok(())
 }
 
@@ -52,8 +59,6 @@ pub struct Vars {
     #[allow(dead_code)]
     task_name: String,
     effective_config: String,
-    effective_bundle_id: String,
-    effective_product_name: String,
     /// Lazy UDID resolver (interior-mutable so resolve/try_resolve can take &self).
     sim_resolver: RefCell<SimResolver>,
 }
@@ -67,14 +72,18 @@ impl Vars {
         task_name: &str,
         effective_config: String,
     ) -> Result<Self> {
-        // Resolve per-config overrides
-        let overrides = project.project.configurations.get(&effective_config);
-        let effective_bundle_id = overrides
-            .and_then(|o| o.bundle_id.clone())
-            .unwrap_or_else(|| project.project.bundle_id.clone());
-        let effective_product_name = overrides
-            .and_then(|o| o.product_name.clone())
-            .unwrap_or_else(|| project.project.product_name.clone());
+        // Look up the effective configuration block (required).
+        let cfg_block = project
+            .project
+            .configurations
+            .get(&effective_config)
+            .ok_or_else(|| {
+                XcDevError::Other(format!(
+                    "no configuration `{effective_config}` defined in project.toml"
+                ))
+            })?;
+
+        let effective_product_name = cfg_block.product_name.clone();
 
         let auto = auto::AutoVars::build(
             project_root.clone(),
@@ -94,8 +103,6 @@ impl Vars {
             git,
             task_name: task_name.to_string(),
             effective_config,
-            effective_bundle_id,
-            effective_product_name,
             sim_resolver,
         })
     }
@@ -248,8 +255,14 @@ impl Vars {
             "path" => p.path.clone(),
             "scheme" => p.scheme.clone(),
             "configuration" => self.effective_config.clone(),
-            "bundle_id" => self.effective_bundle_id.clone(),
-            "product_name" => self.effective_product_name.clone(),
+            "bundle_id" | "product_name" => {
+                let cfg = p.configurations.get(&self.effective_config)?;
+                if name == "bundle_id" {
+                    cfg.bundle_id.clone()
+                } else {
+                    cfg.product_name.clone()
+                }
+            }
             _ => return None,
         })
     }

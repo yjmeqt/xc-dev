@@ -34,9 +34,20 @@ pub fn run(cwd: &Path) -> Result<i32> {
         }
     };
     match vars::validate_project(&pf) {
-        Ok(()) => println!("  PASS  project reserved-names: ok"),
+        Ok(()) => {
+            println!("  PASS  project reserved-names: ok");
+            println!(
+                "  PASS  project default configuration: [project.configurations.{}] exists",
+                pf.project.configuration
+            );
+        }
         Err(e) => {
-            println!("  FAIL  project reserved-names: {e}");
+            let msg = e.to_string();
+            if msg.contains("has no [project.configurations.") {
+                println!("  FAIL  project default configuration: {e}");
+            } else {
+                println!("  FAIL  project reserved-names: {e}");
+            }
             failed = true;
         }
     }
