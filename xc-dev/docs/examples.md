@@ -89,6 +89,42 @@ xcodebuild -scheme {{scheme}} archive \\
 """
 ```
 
+## Archive with per-configuration overrides (Release)
+
+Use `configuration = "Release"` on the task so that `{{bundle_id}}`, `{{product_name}}`,
+and `{{app_path}}` all resolve from `[project.configurations.Release]` automatically.
+
+```toml
+# project.toml
+[project]
+scheme         = "MyApp"
+configuration  = "Debug"
+bundle_id      = "com.example.myapp.debug"
+product_name   = "MyApp Dev"
+min_ios_version = "26.0"
+
+[project.configurations.Release]
+bundle_id    = "com.example.myapp"
+product_name = "MyApp"
+
+# tasks.toml
+[tasks.archive-release]
+configuration = "Release"
+desc = "Archive the Release build with the correct bundle_id"
+cmd  = """
+set -euo pipefail
+mkdir -p {{xc_dev_dir}}/archives
+xcodebuild -scheme {{scheme}} \\
+  -configuration {{configuration}} \\
+  -derivedDataPath {{derived_data}} \\
+  archive \\
+  -archivePath {{xc_dev_dir}}/archives/{{git_branch}}-{{git_sha}}.xcarchive
+"""
+```
+
+`{{bundle_id}}` resolves to `com.example.myapp` (from the Release override), and
+`{{app_path}}` points to `…/Release-iphonesimulator/MyApp.app`.
+
 ## Log stream from the simulator
 
 ```toml
