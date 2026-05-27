@@ -1,0 +1,64 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 0.0.1) — used as tag v<version>'
+        required: true
+        type: string
+
+jobs:
+  release:
+    name: Build & publish (macOS arm64)
+    runs-on: macos-14
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify Cargo.toml version matches input
+        run: |
+          CARGO_VERSION=$(grep -m1 '^version' crates/xc-dev/Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')
+          if [ "$CARGO_VERSION" != "${{ inputs.version }}" ]; then
+            echo "::error::Cargo.toml version ($CARGO_VERSION) != input (${{ inputs.version }})"
+            exit 1
+          fi
+
+      - name: Cache cargo registry + build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-release-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-release-
+
+      - name: Build release binary (arm64)
+        run: cargo build --release --locked --target aarch64-apple-darwin -p xc-dev
+
+      - name: Package tarball
+        id: pkg
+        run: |
+          VERSION="${{ inputs.version }}"
+          NAME="xc-dev-v${VERSION}-aarch64-apple-darwin"
+          mkdir -p "dist/${NAME}"
+          cp target/aarch64-apple-darwin/release/xc-dev "dist/${NAME}/"
+          cp README.md "dist/${NAME}/" 2>/dev/null || true
+          tar -czf "dist/${NAME}.tar.gz" -C dist "${NAME}"
+          shasum -a 256 "dist/${NAME}.tar.gz" > "dist/${NAME}.tar.gz.sha256"
+          echo "tarball=dist/${NAME}.tar.gz" >> "$GITHUB_OUTPUT"
+          echo "sha=dist/${NAME}.tar.gz.sha256" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v${{ inputs.version }}"
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --generate-notes \
+            "${{ steps.pkg.outputs.tarball }}" \
+            "${{ steps.pkg.outputs.sha }}"
