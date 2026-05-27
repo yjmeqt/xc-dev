@@ -7,6 +7,15 @@ injects scheme, bundle id, simulator id, derived data path, git branch, etc. as
 
 ## Install
 
+**Prebuilt binary (macOS, Apple Silicon)** — v0.0.1:
+
+```sh
+curl -L https://github.com/yjmeqt/xc-dev/releases/download/v0.0.1/xc-dev-v0.0.1-aarch64-apple-darwin.tar.gz | tar xz
+sudo mv xc-dev-v0.0.1-aarch64-apple-darwin/xc-dev /usr/local/bin/
+```
+
+**From source** (any platform with a Rust toolchain):
+
 ```sh
 cargo install --git https://github.com/yjmeqt/xc-dev xc-dev
 # or from a local clone:
