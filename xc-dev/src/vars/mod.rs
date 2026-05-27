@@ -15,7 +15,6 @@ const PROJECT_FIELD_NAMES: &[&str] = &[
     "configuration",
     "bundle_id",
     "product_name",
-    "min_ios_version",
 ];
 
 pub fn validate_project(p: &ProjectFile) -> Result<()> {
@@ -55,7 +54,6 @@ pub struct Vars {
     effective_config: String,
     effective_bundle_id: String,
     effective_product_name: String,
-    effective_min_ios_version: String,
     /// Lazy UDID resolver (interior-mutable so resolve/try_resolve can take &self).
     sim_resolver: RefCell<SimResolver>,
 }
@@ -77,9 +75,6 @@ impl Vars {
         let effective_product_name = overrides
             .and_then(|o| o.product_name.clone())
             .unwrap_or_else(|| project.project.product_name.clone());
-        let effective_min_ios_version = overrides
-            .and_then(|o| o.min_ios_version.clone())
-            .unwrap_or_else(|| project.project.min_ios_version.clone());
 
         let auto = auto::AutoVars::build(
             project_root.clone(),
@@ -101,7 +96,6 @@ impl Vars {
             effective_config,
             effective_bundle_id,
             effective_product_name,
-            effective_min_ios_version,
             sim_resolver,
         })
     }
@@ -256,7 +250,6 @@ impl Vars {
             "configuration" => self.effective_config.clone(),
             "bundle_id" => self.effective_bundle_id.clone(),
             "product_name" => self.effective_product_name.clone(),
-            "min_ios_version" => self.effective_min_ios_version.clone(),
             _ => return None,
         })
     }

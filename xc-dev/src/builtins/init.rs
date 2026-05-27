@@ -61,7 +61,7 @@ pub fn run(
             .unwrap_or_else(|| "Debug".to_string())
     };
 
-    let (bundle_id, product_name, min_ios_version) = match detect_build_settings_for_config(
+    let (bundle_id, product_name) = match detect_build_settings_for_config(
         cwd,
         &path,
         &scheme,
@@ -76,7 +76,7 @@ pub fn run(
                     eprintln!(
                             "xc-dev: warn: build settings not detected via xcodebuild; using placeholders"
                         );
-                    ("REPLACE_ME".into(), "REPLACE_ME".into(), "26.0".into())
+                    ("REPLACE_ME".into(), "REPLACE_ME".into())
                 }
             }
         }
@@ -89,7 +89,7 @@ pub fn run(
             continue;
         }
         let settings = detect_build_settings_for_config(cwd, &path, &scheme, config);
-        let (cfg_bundle_id, cfg_product_name, cfg_min_ios) = match settings {
+        let (cfg_bundle_id, cfg_product_name) = match settings {
             Some(s) => s,
             None => {
                 eprintln!(
@@ -101,9 +101,8 @@ pub fn run(
 
         let bundle_differs = cfg_bundle_id != bundle_id;
         let product_differs = cfg_product_name != product_name;
-        let min_ios_differs = cfg_min_ios != min_ios_version;
 
-        if bundle_differs || product_differs || min_ios_differs {
+        if bundle_differs || product_differs {
             config_overrides_toml.push_str(&format!("\n[project.configurations.{config}]\n"));
             if bundle_differs {
                 config_overrides_toml
@@ -112,9 +111,6 @@ pub fn run(
             if product_differs {
                 config_overrides_toml
                     .push_str(&format!("product_name     = \"{cfg_product_name}\"\n"));
-            }
-            if min_ios_differs {
-                config_overrides_toml.push_str(&format!("min_ios_version  = \"{cfg_min_ios}\"\n"));
             }
         }
     }
@@ -129,7 +125,6 @@ scheme           = "{scheme}"
 configuration    = "{default_config}"
 bundle_id        = "{bundle_id}"
 product_name     = "{product_name}"
-min_ios_version  = "{min_ios_version}"
 {config_overrides_toml}
 [vars]
 # Add custom variables here:
@@ -352,7 +347,7 @@ fn detect_build_settings_for_config(
     path: &str,
     scheme: &str,
     configuration: &str,
-) -> Option<(String, String, String)> {
+) -> Option<(String, String)> {
     let flag = if path.ends_with(".xcworkspace") {
         "-workspace"
     } else {
@@ -380,11 +375,10 @@ fn detect_build_settings_for_config(
     let bs = v.as_array()?.first()?.get("buildSettings")?;
     let bid = bs.get("PRODUCT_BUNDLE_IDENTIFIER")?.as_str()?.to_string();
     let pn = bs.get("PRODUCT_NAME")?.as_str()?.to_string();
-    let dt = bs.get("IPHONEOS_DEPLOYMENT_TARGET")?.as_str()?.to_string();
-    Some((bid, pn, dt))
+    Some((bid, pn))
 }
 
-fn detect_build_settings(cwd: &Path, path: &str, scheme: &str) -> Option<(String, String, String)> {
+fn detect_build_settings(cwd: &Path, path: &str, scheme: &str) -> Option<(String, String)> {
     let flag = if path.ends_with(".xcworkspace") {
         "-workspace"
     } else {
@@ -403,6 +397,5 @@ fn detect_build_settings(cwd: &Path, path: &str, scheme: &str) -> Option<(String
     let bs = v.as_array()?.first()?.get("buildSettings")?;
     let bid = bs.get("PRODUCT_BUNDLE_IDENTIFIER")?.as_str()?.to_string();
     let pn = bs.get("PRODUCT_NAME")?.as_str()?.to_string();
-    let dt = bs.get("IPHONEOS_DEPLOYMENT_TARGET")?.as_str()?.to_string();
-    Some((bid, pn, dt))
+    Some((bid, pn))
 }

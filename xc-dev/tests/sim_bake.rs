@@ -144,7 +144,6 @@ scheme = "X"
 configuration = "Debug"
 bundle_id = "com.x"
 product_name = "X"
-min_ios_version = "26.0"
 "#,
     )
     .unwrap();
@@ -255,7 +254,6 @@ scheme = "X"
 configuration = "Debug"
 bundle_id = "com.x"
 product_name = "X"
-min_ios_version = "26.0"
 "#,
     )
     .unwrap();

@@ -14,9 +14,9 @@ at the first match:
 3. **Simulator shortcuts** — `sim_id`, `sim_name`, `sim_runtime` resolve to `[sim.default]`.
 4. **Simulator qualified** — `sim.<label>.<field>` for non-default labels.
 5. **`[project]` fields** — `scheme`, `bundle_id`, `product_name`, `configuration`,
-   `path`, `min_ios_version`. For `bundle_id`, `product_name`, `min_ios_version`, and
-   `configuration`, the resolved value is the **effective configuration** for the task
-   (see below), not always the literal `[project]` value.
+   `path`. For `bundle_id`, `product_name`, and `configuration`, the resolved value is
+   the **effective configuration** for the task (see below), not always the literal
+   `[project]` value.
 6. **Automatic variables** — listed below.
 7. **Git variables** — listed below; lazy-evaluated and cached.
 
@@ -42,7 +42,7 @@ project_root  xc_dev_dir  derived_data  build_products_dir  app_path
 date  timestamp  user  home
 git_root  git_branch  git_sha  git_worktree_dir  git_worktree_name  git_main_root
 sim_id  sim_name  sim_runtime
-path  scheme  configuration  bundle_id  product_name  min_ios_version
+path  scheme  configuration  bundle_id  product_name
 ```
 
 ## Automatic variables
@@ -93,8 +93,8 @@ unaffected — you can use xc-dev in non-git directories.
 
 ## Configuration-dependent variables and effective_config
 
-Four system variables — `{{bundle_id}}`, `{{product_name}}`, `{{min_ios_version}}`, and
-`{{configuration}}` — are **effective-configuration-aware**:
+Three system variables — `{{bundle_id}}`, `{{product_name}}`, and `{{configuration}}` —
+are **effective-configuration-aware**:
 
 ```
 effective_config = task.configuration  (if set)
@@ -138,11 +138,10 @@ scheme           = "MyApp"
 configuration    = "Debug"
 bundle_id        = "com.example.myapp"
 product_name     = "MyApp"
-min_ios_version  = "26.0"
 ```
 
 becomes available as `{{path}}`, `{{scheme}}`, `{{configuration}}`, `{{bundle_id}}`,
-`{{product_name}}`, `{{min_ios_version}}`.
+`{{product_name}}`.
 
 ## Simulator variables
 

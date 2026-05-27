@@ -137,7 +137,6 @@ scheme         = "MyApp"
 configuration  = "Debug"
 bundle_id      = "com.example.myapp.debug"
 product_name   = "MyApp Dev"
-min_ios_version = "26.0"
 
 [project.configurations.Release]
 bundle_id    = "com.example.myapp"

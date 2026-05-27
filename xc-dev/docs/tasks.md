@@ -97,8 +97,8 @@ defaults.
 ### `configuration`
 
 The Xcode configuration to use when resolving `{{bundle_id}}`, `{{product_name}}`,
-`{{min_ios_version}}`, `{{configuration}}`, `{{app_path}}`, and `{{build_products_dir}}`
-for this task. If omitted, the task inherits `[project].configuration`.
+`{{configuration}}`, `{{app_path}}`, and `{{build_products_dir}}` for this task.
+If omitted, the task inherits `[project].configuration`.
 
 ```toml
 [tasks.archive-release]

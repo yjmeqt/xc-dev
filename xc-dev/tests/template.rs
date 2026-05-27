@@ -14,7 +14,6 @@ fn pf() -> ProjectFile {
             configuration: "Debug".into(),
             bundle_id: "com.x".into(),
             product_name: "X".into(),
-            min_ios_version: "26.0".into(),
             derived_data: None,
             configurations: BTreeMap::new(),
         },
@@ -321,7 +320,6 @@ fn pf_with_release_override() -> ProjectFile {
         ConfigurationOverrides {
             bundle_id: Some("com.x.release".to_string()),
             product_name: Some("X Release".to_string()),
-            min_ios_version: None,
         },
     );
     ProjectFile {
@@ -332,7 +330,6 @@ fn pf_with_release_override() -> ProjectFile {
             configuration: "Debug".into(),
             bundle_id: "com.x".into(),
             product_name: "X".into(),
-            min_ios_version: "26.0".into(),
             derived_data: None,
             configurations: confs,
         },
@@ -354,8 +351,6 @@ fn per_config_bundle_id_resolves_from_override() {
     .unwrap();
     assert_eq!(v.resolve("bundle_id"), Some("com.x.release".into()));
     assert_eq!(v.resolve("product_name"), Some("X Release".into()));
-    // min_ios_version not overridden → falls back to [project]
-    assert_eq!(v.resolve("min_ios_version"), Some("26.0".into()));
 }
 
 #[test]

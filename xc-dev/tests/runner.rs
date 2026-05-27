@@ -250,7 +250,6 @@ scheme = "Hello"
 configuration = "Debug"
 bundle_id = "com.x"
 product_name = "X"
-min_ios_version = "26.0"
 "#,
     )
     .unwrap();
@@ -360,7 +359,6 @@ scheme = "Hello"
 configuration = "Debug"
 bundle_id = "com.x"
 product_name = "X"
-min_ios_version = "26.0"
 "#,
     )
     .unwrap();
@@ -406,7 +404,6 @@ scheme = "X"
 configuration = "Debug"
 bundle_id = "com.x"
 product_name = "X"
-min_ios_version = "26.0"
 "#,
     )
     .unwrap();
@@ -444,7 +441,6 @@ scheme = "Hello"
 configuration = "Debug"
 bundle_id = "com.x"
 product_name = "X"
-min_ios_version = "26.0"
 "#,
     )
     .unwrap();
@@ -484,7 +480,6 @@ scheme = "Hello"
 configuration = "Debug"
 bundle_id = "com.x.debug"
 product_name = "X Debug"
-min_ios_version = "26.0"
 
 [project.configurations.Release]
 bundle_id    = "com.x.release"
