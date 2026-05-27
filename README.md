@@ -8,15 +8,15 @@ injects scheme, bundle id, simulator id, derived data path, git branch, etc. as
 ## Install
 
 ```sh
-cargo install --git https://github.com/yjmeqt/worktree-ios-dev-tool xc-dev
+cargo install --git https://github.com/yjmeqt/xc-dev xc-dev
 # or from a local clone:
-cd xc-dev && cargo install --path .
+cargo install --path crates/xc-dev
 ```
 
 ## Install the Claude skill
 
 ```sh
-npx skills add yjmeqt/worktree-ios-dev-tool
+npx skills add yjmeqt/xc-dev
 ```
 
-See [`xc-dev/README.md`](xc-dev/README.md) for the quickstart and docs.
+See [`crates/xc-dev/README.md`](crates/xc-dev/README.md) for the quickstart and docs.
