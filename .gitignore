@@ -3,6 +3,7 @@ __pycache__/
 .venv/
 .pytest_cache/
 .DS_Store
+.claude/
 
 # Local-only design docs / implementation plans.
 # Already-tracked files under docs/superpowers/ continue to be tracked;

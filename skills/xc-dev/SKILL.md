@@ -111,10 +111,10 @@ own build cache and they don't fight each other.
 
 If you need more detail than this skill provides, point the user at:
 
-- `xc-dev/docs/tasks.md` — full Task DSL reference
-- `xc-dev/docs/variables.md` — every built-in variable + resolution order
-- `xc-dev/docs/config.md` — TOML schemas
-- `xc-dev/docs/examples.md` — example task recipes
+- `crates/xc-dev/docs/tasks.md` — full Task DSL reference
+- `crates/xc-dev/docs/variables.md` — every built-in variable + resolution order
+- `crates/xc-dev/docs/config.md` — TOML schemas
+- `crates/xc-dev/docs/examples.md` — example task recipes
 
 ## Relationship to other skills
 
