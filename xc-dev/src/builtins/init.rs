@@ -61,58 +61,57 @@ pub fn run(
             .unwrap_or_else(|| "Debug".to_string())
     };
 
-    let (bundle_id, product_name) = match detect_build_settings_for_config(
-        cwd,
-        &path,
-        &scheme,
-        &default_config,
-    ) {
-        Some(t) => t,
-        None => {
-            // Fall back to no-config detection
-            match detect_build_settings(cwd, &path, &scheme) {
-                Some(t) => t,
-                None => {
-                    eprintln!(
-                            "xc-dev: warn: build settings not detected via xcodebuild; using placeholders"
-                        );
-                    ("REPLACE_ME".into(), "REPLACE_ME".into())
-                }
+    // 5) Build per-config blocks for ALL configurations (symmetric — every config gets a full block).
+    //    Start with the default config, then others in the order they were listed.
+    let mut config_blocks_toml = String::new();
+
+    // Determine which configurations to emit blocks for.
+    // If all_configs is empty (xcodebuild unavailable), we'll emit just the default.
+    let configs_to_emit: Vec<String> = if all_configs.is_empty() {
+        vec![default_config.clone()]
+    } else {
+        // Ensure default_config appears first, then the rest in order.
+        let mut list = vec![default_config.clone()];
+        for c in &all_configs {
+            if c != &default_config {
+                list.push(c.clone());
             }
         }
+        list
     };
 
-    // 5) Build per-config override blocks for configurations that differ from the default.
-    let mut config_overrides_toml = String::new();
-    for config in &all_configs {
-        if config == &default_config {
-            continue;
-        }
-        let settings = detect_build_settings_for_config(cwd, &path, &scheme, config);
-        let (cfg_bundle_id, cfg_product_name) = match settings {
-            Some(s) => s,
-            None => {
-                eprintln!(
-                    "xc-dev: warn: build settings for configuration {config} not detected; skipping override block"
-                );
-                continue;
-            }
+    for config in &configs_to_emit {
+        let settings = if config == &default_config {
+            // Try config-specific first, then generic fallback.
+            detect_build_settings_for_config(cwd, &path, &scheme, config)
+                .or_else(|| detect_build_settings(cwd, &path, &scheme))
+        } else {
+            detect_build_settings_for_config(cwd, &path, &scheme, config)
         };
 
-        let bundle_differs = cfg_bundle_id != bundle_id;
-        let product_differs = cfg_product_name != product_name;
-
-        if bundle_differs || product_differs {
-            config_overrides_toml.push_str(&format!("\n[project.configurations.{config}]\n"));
-            if bundle_differs {
-                config_overrides_toml
-                    .push_str(&format!("bundle_id        = \"{cfg_bundle_id}\"\n"));
+        config_blocks_toml.push_str(&format!("\n[project.configurations.{config}]\n"));
+        match settings {
+            Some((bid, pn)) => {
+                config_blocks_toml.push_str(&format!("bundle_id        = \"{bid}\"\n"));
+                config_blocks_toml.push_str(&format!("product_name     = \"{pn}\"\n"));
             }
-            if product_differs {
-                config_overrides_toml
-                    .push_str(&format!("product_name     = \"{cfg_product_name}\"\n"));
+            None => {
+                eprintln!(
+                    "xc-dev: warn: build settings for {config} not detected; using placeholders"
+                );
+                config_blocks_toml.push_str("bundle_id        = \"REPLACE_ME\"\n");
+                config_blocks_toml.push_str("product_name     = \"REPLACE_ME\"\n");
             }
         }
+    }
+
+    // If xcodebuild wasn't available at all (no configs detected and no settings either),
+    // emit a fallback single [project.configurations.Debug] block.
+    if config_blocks_toml.is_empty() {
+        eprintln!("xc-dev: warn: build settings not detected via xcodebuild; using placeholders");
+        config_blocks_toml.push_str(&format!("\n[project.configurations.{default_config}]\n"));
+        config_blocks_toml.push_str("bundle_id        = \"REPLACE_ME\"\n");
+        config_blocks_toml.push_str("product_name     = \"REPLACE_ME\"\n");
     }
 
     let project_toml = format!(
@@ -123,9 +122,7 @@ schema_version = 1
 path             = "{path}"
 scheme           = "{scheme}"
 configuration    = "{default_config}"
-bundle_id        = "{bundle_id}"
-product_name     = "{product_name}"
-{config_overrides_toml}
+{config_blocks_toml}
 [vars]
 # Add custom variables here:
 # xcbeautify = "xcbeautify --quiet"
