@@ -55,7 +55,10 @@ def run(args: argparse.Namespace) -> int:
 
     # 3. Boot sim if needed, install, launch.
     ui.step("Installing…")
-    sim_mod.boot(sim.udid)
+    open_gui = not getattr(args, "no_window", False)
+    sim_mod.boot(sim.udid, open_gui=open_gui)
+    if not open_gui and sim_mod.detach_gui():
+        ui.step("Detached Simulator.app (booted sim stays running).")
     proc_run(["xcrun", "simctl", "install", sim.udid, str(app_path)], verbose=True)
 
     ui.step("Launching…")

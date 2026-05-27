@@ -75,10 +75,29 @@ def build_parser() -> argparse.ArgumentParser:
     sbt.add_argument("label", nargs="?", default=None,
                      help="Sim label to boot. Single-sim setups can omit; multi-sim must pass --all or a label.")
     sbt.add_argument("--all", action="store_true", help="Boot every configured simulator.")
+    sbt.add_argument("--no-window", dest="no_window", action="store_true",
+                     help="Boot headless; suppress Simulator.app and detach it if already running.")
     _add_common(sbt)
     sbt.set_defaults(func=lambda a: __import__(
         "worktree_ios_dev_tool.sim", fromlist=["cmd_boot"]
     ).cmd_boot(a))
+
+    sat = sim_sub.add_parser("attach", help="Bring up Simulator.app focused on a sim.")
+    sat.add_argument("label", nargs="?", default=None,
+                     help="Sim label to attach. Single-sim setups can omit.")
+    sat.add_argument("--all", action="store_true",
+                     help="Open Simulator.app without pinning a specific device.")
+    _add_common(sat)
+    sat.set_defaults(func=lambda a: __import__(
+        "worktree_ios_dev_tool.sim", fromlist=["cmd_attach"]
+    ).cmd_attach(a))
+
+    sdt = sim_sub.add_parser("detach",
+        help="Kill Simulator.app (booted sims keep running headless).")
+    _add_common(sdt)
+    sdt.set_defaults(func=lambda a: __import__(
+        "worktree_ios_dev_tool.sim", fromlist=["cmd_detach"]
+    ).cmd_detach(a))
 
     ssh = sim_sub.add_parser("shutdown", help="Shutdown a configured simulator.")
     ssh.add_argument("label", nargs="?", default=None, help="Sim label to shut down.")
@@ -157,6 +176,8 @@ def build_parser() -> argparse.ArgumentParser:
     rn = sub.add_parser("run", help="Build, install on the simulator, launch.")
     rn.add_argument("--release", action="store_true", help="Use Release configuration.")
     rn.add_argument("--sim", default=None, help="Sim label when multiple are configured.")
+    rn.add_argument("--no-window", dest="no_window", action="store_true",
+                    help="Boot the sim headless; suppress Simulator.app (booted sim stays running).")
     _add_common(rn)
     rn.set_defaults(func=_cmd_run)
 
