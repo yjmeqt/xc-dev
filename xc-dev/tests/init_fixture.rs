@@ -52,8 +52,7 @@ fn init_autodetects_against_real_xcodeproj_fixture() {
         .assert()
         .success();
 
-    let toml =
-        std::fs::read_to_string(tmp.path().join(".xc-dev/project.toml")).unwrap();
+    let toml = std::fs::read_to_string(tmp.path().join(".xc-dev/project.toml")).unwrap();
 
     // Both .xcodeproj and .xcworkspace are present in the fixture; workspace must win.
     assert!(

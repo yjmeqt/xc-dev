@@ -1,4 +1,4 @@
-pub mod init;
-pub mod get;
-pub mod list;
 pub mod doctor;
+pub mod get;
+pub mod init;
+pub mod list;

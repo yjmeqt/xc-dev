@@ -1,8 +1,11 @@
+use crate::error::Result;
+use crate::{
+    config, paths, runner, template,
+    vars::{self, Vars},
+};
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::path::Path;
-use crate::error::Result;
-use crate::{paths, config, runner, template, vars::{self, Vars}};
 
 pub fn run(cwd: &Path) -> Result<i32> {
     let mut failed = false;
@@ -32,15 +35,26 @@ pub fn run(cwd: &Path) -> Result<i32> {
     };
     match vars::validate_project(&pf) {
         Ok(()) => println!("  PASS  project reserved-names: ok"),
-        Err(e) => { println!("  FAIL  project reserved-names: {e}"); failed = true; }
+        Err(e) => {
+            println!("  FAIL  project reserved-names: {e}");
+            failed = true;
+        }
     }
 
     let sf = match config::simulator::load(&dotdir.join("simulator.toml")) {
-        Ok(s) => { println!("  PASS  simulator.toml: parsed"); s }
-        Err(e) => { println!("  FAIL  simulator.toml: {e}"); failed = true;
+        Ok(s) => {
+            println!("  PASS  simulator.toml: parsed");
+            s
+        }
+        Err(e) => {
+            println!("  FAIL  simulator.toml: {e}");
+            failed = true;
             // we cannot continue var checks meaningfully without a sim file;
             // synthesize an empty one to keep going.
-            crate::config::simulator::SimulatorFile { schema_version: 1, sim: BTreeMap::new() }
+            crate::config::simulator::SimulatorFile {
+                schema_version: 1,
+                sim: BTreeMap::new(),
+            }
         }
     };
 
@@ -57,42 +71,73 @@ pub fn run(cwd: &Path) -> Result<i32> {
     };
     match vars::validate_tasks(&tasks) {
         Ok(()) => println!("  PASS  tasks reserved-names: ok"),
-        Err(e) => { println!("  FAIL  tasks reserved-names: {e}"); failed = true; }
+        Err(e) => {
+            println!("  FAIL  tasks reserved-names: {e}");
+            failed = true;
+        }
     }
 
-    let xcodebuild_ok = std::process::Command::new("xcodebuild").arg("-version")
-        .output().map(|o| o.status.success()).unwrap_or(false);
-    if xcodebuild_ok { println!("  PASS  xcodebuild: found"); }
-    else { println!("  FAIL  xcodebuild: missing on PATH"); failed = true; }
+    let xcodebuild_ok = std::process::Command::new("xcodebuild")
+        .arg("-version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+    if xcodebuild_ok {
+        println!("  PASS  xcodebuild: found");
+    } else {
+        println!("  FAIL  xcodebuild: missing on PATH");
+        failed = true;
+    }
 
     let path_exists = root.join(&pf.project.path).exists();
-    if path_exists { println!("  PASS  project.path: {}", pf.project.path); }
-    else { println!("  FAIL  project.path: {} (not found at {})", pf.project.path, root.display()); failed = true; }
+    if path_exists {
+        println!("  PASS  project.path: {}", pf.project.path);
+    } else {
+        println!(
+            "  FAIL  project.path: {} (not found at {})",
+            pf.project.path,
+            root.display()
+        );
+        failed = true;
+    }
 
     for (name, task) in &tasks.tasks {
         match runner::resolve_chain(name, &tasks) {
             Ok(_) => println!("  PASS  task `{name}` depends: ok"),
-            Err(e) => { println!("  FAIL  task `{name}` depends: {e}"); failed = true; }
+            Err(e) => {
+                println!("  FAIL  task `{name}` depends: {e}");
+                failed = true;
+            }
         }
         // For the var-check we substitute a placeholder for every declared arg
         // (required or optional) so that tasks with required args are not
         // falsely reported as FAIL due to a missing arg value.
-        let args: BTreeMap<String, String> = task.args.iter()
-            .map(|a| (a.name.clone(),
-                      a.default.clone().unwrap_or_else(|| "<placeholder>".to_string())))
+        let args: BTreeMap<String, String> = task
+            .args
+            .iter()
+            .map(|a| {
+                (
+                    a.name.clone(),
+                    a.default
+                        .clone()
+                        .unwrap_or_else(|| "<placeholder>".to_string()),
+                )
+            })
             .collect();
         let vbuilt = Vars::build(root.clone(), pf.clone(), sf.clone(), args, name);
         match vbuilt {
-            Err(e) => { println!("  FAIL  task `{name}` vars: {e}"); failed = true; continue; }
+            Err(e) => {
+                println!("  FAIL  task `{name}` vars: {e}");
+                failed = true;
+                continue;
+            }
             Ok(v) => {
                 let pending_err: RefCell<Option<crate::error::XcDevError>> = RefCell::new(None);
-                let res = template::render(&task.cmd, name, &|n| {
-                    match v.try_resolve(n) {
-                        Ok(some) => some,
-                        Err(e) => {
-                            *pending_err.borrow_mut() = Some(e);
-                            None
-                        }
+                let res = template::render(&task.cmd, name, &|n| match v.try_resolve(n) {
+                    Ok(some) => some,
+                    Err(e) => {
+                        *pending_err.borrow_mut() = Some(e);
+                        None
                     }
                 });
                 if let Some(e) = pending_err.into_inner() {
@@ -101,7 +146,10 @@ pub fn run(cwd: &Path) -> Result<i32> {
                 } else {
                     match res {
                         Ok(_) => println!("  PASS  task `{name}` vars: ok"),
-                        Err(e) => { println!("  FAIL  task `{name}` vars: {e}"); failed = true; }
+                        Err(e) => {
+                            println!("  FAIL  task `{name}` vars: {e}");
+                            failed = true;
+                        }
                     }
                 }
             }

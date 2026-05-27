@@ -1,7 +1,7 @@
+use crate::error::{Result, XcDevError};
+use crate::{config, paths, vars::Vars};
 use std::collections::BTreeMap;
 use std::path::Path;
-use crate::error::{Result, XcDevError};
-use crate::{paths, config, vars::Vars};
 
 pub fn run(cwd: &Path, key: &str) -> Result<i32> {
     let root = paths::find_project_root(cwd)?;

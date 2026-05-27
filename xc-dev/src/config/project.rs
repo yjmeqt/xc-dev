@@ -1,7 +1,7 @@
+use crate::error::{Result, XcDevError};
 use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::path::Path;
-use crate::error::{Result, XcDevError};
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ProjectFile {
@@ -31,7 +31,12 @@ pub fn parse(s: &str) -> Result<ProjectFile> {
 }
 
 pub fn load(path: &Path) -> Result<ProjectFile> {
-    let s = std::fs::read_to_string(path)
-        .map_err(|source| XcDevError::Io { path: path.to_path_buf(), source })?;
-    toml::from_str(&s).map_err(|source| XcDevError::Parse { path: path.to_path_buf(), source })
+    let s = std::fs::read_to_string(path).map_err(|source| XcDevError::Io {
+        path: path.to_path_buf(),
+        source,
+    })?;
+    toml::from_str(&s).map_err(|source| XcDevError::Parse {
+        path: path.to_path_buf(),
+        source,
+    })
 }
