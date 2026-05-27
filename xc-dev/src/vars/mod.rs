@@ -206,18 +206,21 @@ impl Vars {
                     return Ok(Some(id.clone()));
                 }
                 // Otherwise resolve lazily via device + runtime.
-                let device = sim.device.as_deref().ok_or_else(|| XcDevError::VarUnavailable {
-                    name: "sim_id".to_string(),
-                    reason: format!(
-                        "no device configured for [sim.{label}]; set `device` or `id`"
-                    ),
-                })?;
+                let device = sim
+                    .device
+                    .as_deref()
+                    .ok_or_else(|| XcDevError::VarUnavailable {
+                        name: "sim_id".to_string(),
+                        reason: format!(
+                            "no device configured for [sim.{label}]; set `device` or `id`"
+                        ),
+                    })?;
                 // Render sim.name through a restricted resolver (no sim_* recursion).
                 let rendered_name = self.render_sim_name(&sim.name);
-                let udid = self
-                    .sim_resolver
-                    .borrow_mut()
-                    .resolve(&rendered_name, device, &sim.runtime)?;
+                let udid =
+                    self.sim_resolver
+                        .borrow_mut()
+                        .resolve(&rendered_name, device, &sim.runtime)?;
                 Ok(Some(udid))
             }
             "sim_name" | "name" => Ok(Some(self.render_sim_name(&sim.name))),

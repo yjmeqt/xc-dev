@@ -33,12 +33,7 @@ impl SimResolver {
     /// `name` is the (template-rendered) `sim.name` value — used as the cache key.
     /// `device` is the device type (e.g. "iPhone 16").
     /// `runtime` is the runtime string (e.g. "iOS 26.2").
-    pub fn resolve(
-        &mut self,
-        name: &str,
-        device: &str,
-        runtime: &str,
-    ) -> Result<String> {
+    pub fn resolve(&mut self, name: &str, device: &str, runtime: &str) -> Result<String> {
         // Ensure cache is loaded + validated.
         self.ensure_loaded()?;
 
@@ -272,7 +267,9 @@ fn resolve_device_type(device: &str) -> Result<String> {
 
     Err(XcDevError::VarUnavailable {
         name: "sim_id".to_string(),
-        reason: format!("no device type found matching {device:?}; check `xcrun simctl list devicetypes`"),
+        reason: format!(
+            "no device type found matching {device:?}; check `xcrun simctl list devicetypes`"
+        ),
     })
 }
 
@@ -326,30 +323,28 @@ fn resolve_runtime_id(runtime: &str) -> Result<String> {
 
     Err(XcDevError::VarUnavailable {
         name: "sim_id".to_string(),
-        reason: format!("no runtime found matching {runtime:?}; check `xcrun simctl list runtimes`"),
+        reason: format!(
+            "no runtime found matching {runtime:?}; check `xcrun simctl list runtimes`"
+        ),
     })
 }
 
 fn runtime_matches(rt: &serde_json::Value, runtime: &str, normalized: &str) -> bool {
     let name = rt.get("name").and_then(|n| n.as_str()).unwrap_or("");
     let id = rt.get("identifier").and_then(|i| i.as_str()).unwrap_or("");
-    name == runtime
-        || normalize_runtime(name) == normalized
-        || runtime_key_matches(id, normalized)
+    name == runtime || normalize_runtime(name) == normalized || runtime_key_matches(id, normalized)
 }
 
 /// Normalize "iOS 17.0" → "ios-17-0" for loose matching.
 fn normalize_runtime(rt: &str) -> String {
-    rt.to_lowercase()
-        .replace(' ', "-")
-        .replace('.', "-")
+    rt.to_lowercase().replace([' ', '.'], "-")
 }
 
 /// Check if a simctl runtime key (e.g. "com.apple.CoreSimulator.SimRuntime.iOS-17-0")
 /// matches a normalized runtime string like "ios-17-0".
 fn runtime_key_matches(key: &str, normalized: &str) -> bool {
     // The last segment of the identifier is like "iOS-17-0".
-    let suffix = key.split('.').last().unwrap_or(key);
+    let suffix = key.split('.').next_back().unwrap_or(key);
     suffix.to_lowercase() == normalized
         || suffix.to_lowercase().replace('-', ".") == normalized.replace('-', ".")
 }
