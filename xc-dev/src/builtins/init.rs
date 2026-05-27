@@ -141,13 +141,28 @@ min_ios_version  = "{min_ios_version}"
     let simulator_toml = r#"# .xc-dev/simulator.toml
 schema_version = 1
 
-# Populate with `xcrun simctl list devices`:
-# [sim.default]
-# id      = "ABC-123-..."
-# name    = "iPhone 17 Pro"
+# Self-resolving simulator: xc-dev will find or create the UDID automatically
+# using `xcrun simctl` based on name + device + runtime. You don't need to
+# hard-code an `id`. The resolved UDID is cached in .sim-cache.json (gitignored).
+[sim.default]
+name    = "xc-dev-default"
+device  = "iPhone 16"
+runtime = "iOS 26.2"
+
+# To pin an explicit UDID instead, add:
+#   id = "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
+#
+# To add another simulator (e.g. an iPad):
+# [sim.ipad]
+# name    = "xc-dev-ipad"
+# device  = "iPad Pro 11-inch (M4)"
 # runtime = "iOS 26.2"
 "#;
     write_file(&dotdir.join("simulator.toml"), simulator_toml)?;
+
+    // Write .gitignore inside .xc-dev/ to exclude the UDID cache file.
+    let gitignore_content = ".sim-cache.json\n";
+    write_file(&dotdir.join(".gitignore"), gitignore_content)?;
 
     let tasks_toml = r#"# .xc-dev/tasks.toml
 [tasks.build]
