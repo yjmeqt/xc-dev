@@ -314,6 +314,8 @@ fn integration_get_sim_id_e2e() {
 path = "X.xcworkspace"
 scheme = "X"
 configuration = "Debug"
+
+[project.configurations.Debug]
 bundle_id = "com.x"
 product_name = "X"
 "#,
