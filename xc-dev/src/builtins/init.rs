@@ -211,6 +211,16 @@ fn detect_project_path(cwd: &Path) -> Option<String> {
     }
 }
 
+/// Parse the first JSON value out of `raw`, tolerating both leading and trailing
+/// non-JSON noise. xcodebuild often appends warnings like
+/// `Found unhandled resource at /…/PrivacyInfo.xcprivacy` after the closing `}`.
+fn parse_json_tolerant(raw: &str, opener: char) -> Option<serde_json::Value> {
+    let start = raw.find(opener)?;
+    let mut iter =
+        serde_json::Deserializer::from_str(&raw[start..]).into_iter::<serde_json::Value>();
+    iter.next()?.ok()
+}
+
 fn detect_scheme(cwd: &Path, path: &str) -> Option<String> {
     let flag = if path.ends_with(".xcworkspace") {
         "-workspace"
@@ -225,19 +235,38 @@ fn detect_scheme(cwd: &Path, path: &str) -> Option<String> {
     if !out.status.success() {
         return None;
     }
-    // tolerate trailing non-JSON noise
     let raw = String::from_utf8_lossy(&out.stdout);
-    let json_start = raw.find('{')?;
-    let v: serde_json::Value = serde_json::from_str(&raw[json_start..]).ok()?;
-    let schemes = v
-        .pointer("/workspace/schemes")
-        .or_else(|| v.pointer("/project/schemes"))?
-        .as_array()?;
-    if schemes.len() == 1 {
-        schemes[0].as_str().map(String::from)
-    } else {
-        None
+    let v = parse_json_tolerant(&raw, '{')?;
+    let root = v.pointer("/workspace").or_else(|| v.pointer("/project"))?;
+    let schemes: Vec<String> = root
+        .get("schemes")?
+        .as_array()?
+        .iter()
+        .filter_map(|s| s.as_str().map(String::from))
+        .collect();
+    if schemes.is_empty() {
+        return None;
     }
+    if schemes.len() == 1 {
+        return Some(schemes.into_iter().next().unwrap());
+    }
+    // Multi-scheme projects (the common case for real apps): pick the scheme that
+    // matches the project file's basename — e.g. `Pulse.xcodeproj` → `Pulse`.
+    let project_basename = std::path::Path::new(path)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("");
+    if let Some(s) = schemes.iter().find(|s| s.as_str() == project_basename) {
+        return Some(s.clone());
+    }
+    // Fallback: pick the scheme that matches any of the project's target names.
+    if let Some(targets) = root.get("targets").and_then(|t| t.as_array()) {
+        let target_names: Vec<&str> = targets.iter().filter_map(|t| t.as_str()).collect();
+        if let Some(s) = schemes.iter().find(|s| target_names.contains(&s.as_str())) {
+            return Some(s.clone());
+        }
+    }
+    None
 }
 
 fn detect_configurations(cwd: &Path, path: &str, scheme: &str) -> Vec<String> {
@@ -255,12 +284,10 @@ fn detect_configurations(cwd: &Path, path: &str, scheme: &str) -> Vec<String> {
         Some(o) if o.status.success() => o,
         _ => return vec![],
     };
-    // xcodebuild -list -json can emit trailing non-JSON noise; find the first '{' and parse from there.
     let raw = String::from_utf8_lossy(&out.stdout);
-    let json_start = raw.find('{').unwrap_or(0);
-    let v: serde_json::Value = match serde_json::from_str(&raw[json_start..]) {
-        Ok(v) => v,
-        Err(_) => return vec![],
+    let v = match parse_json_tolerant(&raw, '{') {
+        Some(v) => v,
+        None => return vec![],
     };
     let configs = v
         .pointer("/workspace/configurations")
@@ -311,10 +338,8 @@ fn detect_build_settings_for_config(
     if !out.status.success() {
         return None;
     }
-    // tolerate trailing non-JSON noise
     let raw = String::from_utf8_lossy(&out.stdout);
-    let json_start = raw.find('[').or_else(|| raw.find('{'))?;
-    let v: serde_json::Value = serde_json::from_str(&raw[json_start..]).ok()?;
+    let v = parse_json_tolerant(&raw, '[').or_else(|| parse_json_tolerant(&raw, '{'))?;
     let bs = v.as_array()?.first()?.get("buildSettings")?;
     let bid = bs.get("PRODUCT_BUNDLE_IDENTIFIER")?.as_str()?.to_string();
     let pn = bs.get("PRODUCT_NAME")?.as_str()?.to_string();
@@ -336,10 +361,8 @@ fn detect_build_settings(cwd: &Path, path: &str, scheme: &str) -> Option<(String
     if !out.status.success() {
         return None;
     }
-    // tolerate trailing non-JSON noise
     let raw = String::from_utf8_lossy(&out.stdout);
-    let json_start = raw.find('[').or_else(|| raw.find('{'))?;
-    let v: serde_json::Value = serde_json::from_str(&raw[json_start..]).ok()?;
+    let v = parse_json_tolerant(&raw, '[').or_else(|| parse_json_tolerant(&raw, '{'))?;
     let bs = v.as_array()?.first()?.get("buildSettings")?;
     let bid = bs.get("PRODUCT_BUNDLE_IDENTIFIER")?.as_str()?.to_string();
     let pn = bs.get("PRODUCT_NAME")?.as_str()?.to_string();
