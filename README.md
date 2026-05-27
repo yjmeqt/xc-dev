@@ -1,20 +1,11 @@
 # iOS dev tooling
 
-A repository for our iOS dev-time tooling. Two tools live here:
+xc-dev — a `package.json`-style task runner for Xcode projects. Declare your own
+`build`, `run`, `test`, `test-package`, … tasks in `.xc-dev/tasks.toml`; xc-dev
+injects scheme, bundle id, simulator id, derived data path, git branch, etc. as
+`{{name}}` substitutions.
 
-- **[`xc-dev/`](xc-dev/)** — Rust-based task runner for Xcode projects.
-  Active development; new projects should use this.
-- **[`worktree_ios_dev_tool/`](worktree_ios_dev_tool/)** — Legacy Python CLI with fixed
-  verbs (`proj`, `sim`, `build`, `run`, `test`). Deprecated; kept for projects that
-  haven't migrated to xc-dev yet.
-
-## xc-dev
-
-A `package.json`-style task runner for Xcode. You declare your own `build`, `run`,
-`test`, `test-package`, … tasks in `.xc-dev/tasks.toml`; xc-dev injects scheme, bundle
-id, simulator id, derived data path, git branch, etc. as `{{name}}` substitutions.
-
-### Install the tool
+## Install
 
 ```sh
 cargo install --git https://github.com/yjmeqt/worktree-ios-dev-tool xc-dev
@@ -22,23 +13,10 @@ cargo install --git https://github.com/yjmeqt/worktree-ios-dev-tool xc-dev
 cd xc-dev && cargo install --path .
 ```
 
-### Install the skill
-
-From any worktree:
+## Install the Claude skill
 
 ```sh
 npx skills add yjmeqt/worktree-ios-dev-tool
 ```
 
-This makes the `xc-dev` skill (`skills/xc-dev/SKILL.md`) available to Claude Code so it
-routes iOS / Xcode work through `xc-dev <task>` instead of raw `xcodebuild`.
-
 See [`xc-dev/README.md`](xc-dev/README.md) for the quickstart and docs.
-
-## Legacy: worktree_ios_dev_tool
-
-The Python predecessor. Same domain (iOS / Xcode / simulator workflows) but with
-hard-coded verbs. New work happens in `xc-dev/`; this directory is preserved for
-projects that haven't migrated.
-
-See [`worktree_ios_dev_tool/README.md`](worktree_ios_dev_tool/README.md) for usage.
