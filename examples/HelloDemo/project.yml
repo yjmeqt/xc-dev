@@ -22,6 +22,9 @@ targets:
         TARGETED_DEVICE_FAMILY: "1,2"
         SWIFT_VERSION: "5.0"
         GENERATE_INFOPLIST_FILE: "YES"
+      configs:
+        Release:
+          PRODUCT_BUNDLE_IDENTIFIER: com.example.HelloDemo.release
 schemes:
   HelloDemo:
     build:
