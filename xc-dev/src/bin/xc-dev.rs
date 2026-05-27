@@ -25,6 +25,7 @@ fn run(inv: cli::Invocation) -> i32 {
             path,
             scheme,
         } => builtins::init::run(&cwd, force, yes, path.as_deref(), scheme.as_deref()),
+        cli::Command::SimBake { label } => builtins::sim::bake(&cwd, label.as_deref()),
         cli::Command::Task { name, args } => runner::run(&cwd, &name, &args, inv.verbose),
     };
     match result {

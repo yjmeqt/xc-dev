@@ -21,6 +21,10 @@ pub enum Command {
         path: Option<String>,
         scheme: Option<String>,
     },
+    /// `:sim bake [label]` — resolve UDIDs and write them into simulator.toml in-place.
+    SimBake {
+        label: Option<String>,
+    },
 }
 
 pub fn parse(argv: &[String]) -> Result<Invocation, String> {
@@ -50,6 +54,17 @@ pub fn parse(argv: &[String]) -> Result<Invocation, String> {
             Command::Get { key }
         }
         ":doctor" => Command::Doctor,
+        ":sim" => {
+            let sub = args
+                .first()
+                .cloned()
+                .ok_or("`:sim` requires a subcommand")?;
+            if sub != "bake" {
+                return Err(format!("unknown :sim subcommand `{sub}`"));
+            }
+            let label = args.get(1).cloned();
+            Command::SimBake { label }
+        }
         ":proj" => {
             let sub = args
                 .first()
@@ -195,5 +210,35 @@ mod tests {
     fn proj_subcommand_required() {
         let err = p(&[":proj"]).unwrap_err();
         assert!(err.contains(":proj"));
+    }
+
+    #[test]
+    fn sim_bake_no_label() {
+        let i = p(&[":sim", "bake"]).unwrap();
+        match i.command {
+            Command::SimBake { label } => assert!(label.is_none()),
+            other => panic!("expected SimBake, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn sim_bake_with_label() {
+        let i = p(&[":sim", "bake", "ipad"]).unwrap();
+        match i.command {
+            Command::SimBake { label } => assert_eq!(label.as_deref(), Some("ipad")),
+            other => panic!("expected SimBake, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn sim_subcommand_required() {
+        let err = p(&[":sim"]).unwrap_err();
+        assert!(err.contains(":sim"));
+    }
+
+    #[test]
+    fn sim_unknown_subcommand_errors() {
+        let err = p(&[":sim", "frobnicate"]).unwrap_err();
+        assert!(err.contains("unknown :sim subcommand"));
     }
 }
