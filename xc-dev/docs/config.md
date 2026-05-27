@@ -94,10 +94,16 @@ runtime = "iOS 26.2"
 When `{{sim_id}}` is first used, xc-dev:
 1. Looks for an existing simulator matching `name` + `runtime` via `xcrun simctl list devices`.
 2. If none is found, creates one via `xcrun simctl create <name> <device-type-id> <runtime-id>`.
-3. Caches the resolved UDID in `.xc-dev/.sim-cache.json` (gitignored, per-machine).
+3. Caches the resolved UDID in `.xc-dev/simulator.local.toml` (gitignored, per-machine).
 
 On subsequent calls the cached UDID is validated against `xcrun simctl list devices` and
 reused. Stale entries (e.g. after the simulator was deleted) are dropped and re-resolved.
+
+**Opt-in alternative: `:sim bake`** — for teams who prefer to check the resolved UDID into
+source control, run `xc-dev :sim bake` once. It resolves all `[sim.<label>]` entries that
+don't have an `id` and writes `id = "<udid>"` directly into `simulator.toml` (in-place,
+preserving comments and formatting). After baking, `simulator.local.toml` is no longer needed
+for those entries.
 
 `name` may contain template variables (e.g. `"{{git_worktree_name}}-sim"`); variables
 starting with `sim` are excluded to prevent recursion.
@@ -131,6 +137,21 @@ Other labels are accessed via `{{sim.<label>.<field>}}`.
 `xc-dev :proj init` scaffolds a self-resolving `[sim.default]` with `device = "iPhone 16"`.
 Run `xcrun simctl list devicetypes` to see all valid device type names.
 Run `xcrun simctl list runtimes` to see installed runtimes.
+
+The per-machine UDID cache lives in `.xc-dev/simulator.local.toml` (gitignored). Its format
+mirrors `simulator.toml` but only contains the `id` field per entry:
+
+```toml
+# .xc-dev/simulator.local.toml
+# Auto-managed by xc-dev. Per-machine UDID cache. Gitignored.
+# Do not edit by hand.
+
+[sim.default]
+id = "ABC-DEF-..."
+
+[sim.ipad]
+id = "GHI-JKL-..."
+```
 
 ## `tasks.toml`
 
