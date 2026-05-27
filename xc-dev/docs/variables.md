@@ -14,7 +14,9 @@ at the first match:
 3. **Simulator shortcuts** — `sim_id`, `sim_name`, `sim_runtime` resolve to `[sim.default]`.
 4. **Simulator qualified** — `sim.<label>.<field>` for non-default labels.
 5. **`[project]` fields** — `scheme`, `bundle_id`, `product_name`, `configuration`,
-   `path`, `min_ios_version`.
+   `path`, `min_ios_version`. For `bundle_id`, `product_name`, `min_ios_version`, and
+   `configuration`, the resolved value is the **effective configuration** for the task
+   (see below), not always the literal `[project]` value.
 6. **Automatic variables** — listed below.
 7. **Git variables** — listed below; lazy-evaluated and cached.
 
@@ -88,6 +90,42 @@ shells out once.
 Referencing a `git_*` variable outside a git repository (or when `git` exits non-zero)
 fails with `variable X unavailable: <git error>`. Tasks that don't reference git vars are
 unaffected — you can use xc-dev in non-git directories.
+
+## Configuration-dependent variables and effective_config
+
+Four system variables — `{{bundle_id}}`, `{{product_name}}`, `{{min_ios_version}}`, and
+`{{configuration}}` — are **effective-configuration-aware**:
+
+```
+effective_config = task.configuration  (if set)
+                  OR  project.configuration  (fallback)
+```
+
+The engine consults `[project.configurations.<effective_config>]` first. If a value is
+present in that override block it wins; otherwise the `[project]` field is used.
+`{{configuration}}` resolves to `effective_config`, not always the literal
+`[project].configuration`.
+
+Automatic path variables that include the configuration or product name
+(`{{build_products_dir}}`, `{{app_path}}`) also use the effective values, so they
+point to the correct build output directory for the task's configuration.
+
+Example — a task that archives the Release build:
+
+```toml
+[tasks.archive-release]
+configuration = "Release"
+cmd = """
+xcodebuild -scheme {{scheme}} \
+  -configuration {{configuration}} \
+  archive \
+  -archivePath {{xc_dev_dir}}/archives/{{git_branch}}.xcarchive
+"""
+```
+
+When this task runs, `{{bundle_id}}` resolves from
+`[project.configurations.Release].bundle_id` (if present), and `{{app_path}}` points
+to `…/Release-iphonesimulator/MyApp.app`.
 
 ## Project fields
 

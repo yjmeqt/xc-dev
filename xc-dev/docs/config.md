@@ -12,8 +12,8 @@ schema_version = 1
 path             = "MyApp.xcworkspace"     # or "MyApp.xcodeproj"
 scheme           = "MyApp"
 configuration    = "Debug"
-bundle_id        = "com.example.myapp"
-product_name     = "MyApp"
+bundle_id        = "com.example.myapp.debug"
+product_name     = "MyApp Dev"
 min_ios_version  = "26.0"
 # Optional — override DerivedData location. Default is "{{xc_dev_dir}}/DerivedData".
 # derived_data   = "/Volumes/External/DerivedData/MyApp"
@@ -30,14 +30,45 @@ xcbeautify = "xcbeautify --quiet"
 | `schema_version` | u32 | yes | Currently `1`. |
 | `[project].path` | string | yes | `.xcworkspace` or `.xcodeproj`, relative to project root. |
 | `[project].scheme` | string | yes | Xcode scheme name. |
-| `[project].configuration` | string | yes | E.g. `Debug` / `Release`. |
-| `[project].bundle_id` | string | yes | App bundle identifier. |
-| `[project].product_name` | string | yes | Used to derive `{{app_path}}`. |
+| `[project].configuration` | string | yes | Default configuration, e.g. `Debug`. Used when a task has no `configuration` field. |
+| `[project].bundle_id` | string | yes | App bundle identifier for the default configuration. |
+| `[project].product_name` | string | yes | Used to derive `{{app_path}}` for the default configuration. |
 | `[project].min_ios_version` | string | yes | E.g. `26.0`. |
 | `[project].derived_data` | string | no | Default: `{{xc_dev_dir}}/DerivedData` (per-worktree isolation). |
 | `[vars].<key>` | string | no | User-defined variables. See [variables.md](variables.md). |
 
 `[vars]` keys cannot collide with reserved variable names (see [variables.md](variables.md)).
+
+### Per-configuration overrides
+
+Xcode projects often have multiple configurations (Debug, Release, AdHoc, Beta, …) each
+with different `PRODUCT_BUNDLE_IDENTIFIER`, `PRODUCT_NAME`, or deployment target. Declare
+overrides under `[project.configurations.<name>]`:
+
+```toml
+[project]
+scheme         = "MyApp"
+configuration  = "Debug"
+bundle_id      = "com.example.myapp.debug"
+product_name   = "MyApp Dev"
+min_ios_version = "26.0"
+
+[project.configurations.Release]
+bundle_id    = "com.example.myapp"
+product_name = "MyApp"
+
+[project.configurations.AdHoc]
+bundle_id = "com.example.myapp.adhoc"
+# product_name omitted — falls back to [project].product_name
+```
+
+All three override keys (`bundle_id`, `product_name`, `min_ios_version`) are optional
+within each `[project.configurations.<name>]` block. Omitted keys fall back to the
+corresponding `[project]` value.
+
+`xc-dev :proj init` detects these automatically by calling `xcodebuild -showBuildSettings`
+for each configuration and emitting override blocks only for values that differ from the
+default configuration.
 
 ## `simulator.toml`
 

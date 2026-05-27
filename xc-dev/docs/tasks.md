@@ -22,6 +22,7 @@ Invoke as `xc-dev build` or `xc-dev build Release`.
 | `desc` | string | no | — |
 | `cwd` | string | no | project root |
 | `env` | table | no | `{}` |
+| `configuration` | string | no | `[project].configuration` |
 
 ### `cmd`
 
@@ -92,6 +93,31 @@ cmd     = "xcrun simctl launch {{sim_id}} {{bundle_id}}"
 **Args binding for dependencies:** only the user-invoked root task receives the caller's
 positional args. Dependencies always bind with empty user-args and rely on their declared
 defaults.
+
+### `configuration`
+
+The Xcode configuration to use when resolving `{{bundle_id}}`, `{{product_name}}`,
+`{{min_ios_version}}`, `{{configuration}}`, `{{app_path}}`, and `{{build_products_dir}}`
+for this task. If omitted, the task inherits `[project].configuration`.
+
+```toml
+[tasks.archive-release]
+configuration = "Release"
+desc = "Archive the Release build"
+cmd = """
+xcodebuild -scheme {{scheme}} \
+  -configuration {{configuration}} \
+  archive \
+  -archivePath {{xc_dev_dir}}/archives/{{git_branch}}.xcarchive
+"""
+```
+
+The value is a hint for variable resolution only — it does **not** automatically pass
+`-configuration Release` to `xcodebuild`. Include that flag explicitly in `cmd` using
+`{{configuration}}`.
+
+`xc-dev :doctor` emits a `WARN` (not `FAIL`) if `task.configuration` doesn't match any
+name in `[project].configuration` or `[project.configurations.*]`.
 
 ### `desc`
 
