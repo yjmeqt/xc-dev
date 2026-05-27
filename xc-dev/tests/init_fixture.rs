@@ -67,21 +67,34 @@ fn init_autodetects_against_real_xcodeproj_fixture() {
         toml.contains(r#"scheme           = "HelloDemo""#),
         "expected detected scheme HelloDemo:\n{toml}"
     );
+    // Every configuration gets its own [project.configurations.<name>] block.
+    assert!(
+        toml.contains("[project.configurations.Debug]"),
+        "expected [project.configurations.Debug] block:\n{toml}"
+    );
     assert!(
         toml.contains(r#"bundle_id        = "com.example.HelloDemo""#),
-        "expected bundle_id detection:\n{toml}"
+        "expected Debug bundle_id detection:\n{toml}"
     );
     assert!(
         toml.contains(r#"product_name     = "HelloDemo""#),
         "expected product_name detection:\n{toml}"
     );
-    // Release configuration has a different bundle_id → should produce an override block.
+    // Release configuration has a different bundle_id → gets its own block.
     assert!(
         toml.contains("[project.configurations.Release]"),
         "expected [project.configurations.Release] block:\n{toml}"
     );
     assert!(
         toml.contains(r#"bundle_id        = "com.example.HelloDemo.release""#),
-        "expected Release bundle_id override:\n{toml}"
+        "expected Release bundle_id in its own block:\n{toml}"
+    );
+    // bundle_id must NOT appear at the [project] level anymore.
+    // The [project] section only has path/scheme/configuration.
+    let project_section_end = toml.find("\n[project.configurations").unwrap_or(toml.len());
+    let project_section = &toml[..project_section_end];
+    assert!(
+        !project_section.contains("bundle_id"),
+        "bundle_id must not appear at [project] level:\n{project_section}"
     );
 }

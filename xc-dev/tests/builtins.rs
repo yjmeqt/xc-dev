@@ -13,6 +13,8 @@ schema_version = 1
 path = "X.xcworkspace"
 scheme = "X"
 configuration = "Debug"
+
+[project.configurations.Debug]
 bundle_id = "com.x"
 product_name = "X"
 "#,
@@ -175,6 +177,8 @@ schema_version = 1
 path = "X.xcworkspace"
 scheme = "X"
 configuration = "Debug"
+
+[project.configurations.Debug]
 bundle_id = "com.x"
 product_name = "X"
 

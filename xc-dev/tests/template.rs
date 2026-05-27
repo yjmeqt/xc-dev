@@ -1,21 +1,27 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
-use xc_dev::config::project::{ConfigurationOverrides, Project, ProjectFile};
+use xc_dev::config::project::{Configuration, Project, ProjectFile};
 use xc_dev::config::simulator::{Sim, SimulatorFile};
 use xc_dev::template;
 use xc_dev::vars::Vars;
 
 fn pf() -> ProjectFile {
+    let mut confs = BTreeMap::new();
+    confs.insert(
+        "Debug".to_string(),
+        Configuration {
+            bundle_id: "com.x".into(),
+            product_name: "X".into(),
+        },
+    );
     ProjectFile {
         schema_version: 1,
         project: Project {
             path: "X.xcworkspace".into(),
             scheme: "X".into(),
             configuration: "Debug".into(),
-            bundle_id: "com.x".into(),
-            product_name: "X".into(),
             derived_data: None,
-            configurations: BTreeMap::new(),
+            configurations: confs,
         },
         vars: BTreeMap::from([("xcbeautify".to_string(), "xcb".to_string())]),
     }
@@ -313,13 +319,20 @@ fn git_unknown_name_returns_ok_none() {
     assert!(r.is_none());
 }
 
-fn pf_with_release_override() -> ProjectFile {
+fn pf_with_debug_and_release() -> ProjectFile {
     let mut confs = BTreeMap::new();
     confs.insert(
+        "Debug".to_string(),
+        Configuration {
+            bundle_id: "com.x".into(),
+            product_name: "X".into(),
+        },
+    );
+    confs.insert(
         "Release".to_string(),
-        ConfigurationOverrides {
-            bundle_id: Some("com.x.release".to_string()),
-            product_name: Some("X Release".to_string()),
+        Configuration {
+            bundle_id: "com.x.release".into(),
+            product_name: "X Release".into(),
         },
     );
     ProjectFile {
@@ -328,8 +341,6 @@ fn pf_with_release_override() -> ProjectFile {
             path: "X.xcworkspace".into(),
             scheme: "X".into(),
             configuration: "Debug".into(),
-            bundle_id: "com.x".into(),
-            product_name: "X".into(),
             derived_data: None,
             configurations: confs,
         },
@@ -338,8 +349,8 @@ fn pf_with_release_override() -> ProjectFile {
 }
 
 #[test]
-fn per_config_bundle_id_resolves_from_override() {
-    let p = pf_with_release_override();
+fn per_config_bundle_id_resolves_from_configuration_block() {
+    let p = pf_with_debug_and_release();
     let v = Vars::build(
         PathBuf::from("/tmp/p"),
         p,
@@ -354,9 +365,8 @@ fn per_config_bundle_id_resolves_from_override() {
 }
 
 #[test]
-fn per_config_falls_back_to_project_when_no_override() {
-    let p = pf_with_release_override();
-    // Debug doesn't have an override entry → uses [project]
+fn per_config_debug_resolves_from_debug_block() {
+    let p = pf_with_debug_and_release();
     let v = Vars::build(
         PathBuf::from("/tmp/p"),
         p,
@@ -371,8 +381,30 @@ fn per_config_falls_back_to_project_when_no_override() {
 }
 
 #[test]
+fn missing_configuration_block_errors_at_build() {
+    // effective_config = "Beta" but there is no [project.configurations.Beta] block.
+    match Vars::build(
+        PathBuf::from("/tmp/p"),
+        pf(), // only has Debug
+        sf(),
+        BTreeMap::new(),
+        "t",
+        "Beta".into(),
+    ) {
+        Err(e) => {
+            let s = e.to_string();
+            assert!(
+                s.contains("Beta") && s.contains("no configuration"),
+                "expected error mentioning Beta, got: {s}"
+            );
+        }
+        Ok(_) => panic!("expected error for missing Beta config block"),
+    }
+}
+
+#[test]
 fn configuration_resolves_to_effective_config() {
-    let p = pf_with_release_override();
+    let p = pf_with_debug_and_release();
     let v = Vars::build(
         PathBuf::from("/tmp/p"),
         p,
@@ -387,7 +419,7 @@ fn configuration_resolves_to_effective_config() {
 
 #[test]
 fn app_path_uses_effective_config_and_product_name() {
-    let p = pf_with_release_override();
+    let p = pf_with_debug_and_release();
     let v = Vars::build(
         PathBuf::from("/tmp/p"),
         p,

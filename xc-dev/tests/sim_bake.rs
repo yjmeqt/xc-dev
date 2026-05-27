@@ -142,6 +142,8 @@ fn sim_bake_writes_id_into_simulator_toml() {
 path = "X.xcworkspace"
 scheme = "X"
 configuration = "Debug"
+
+[project.configurations.Debug]
 bundle_id = "com.x"
 product_name = "X"
 "#,
@@ -252,6 +254,8 @@ fn sim_bake_nonexistent_label_fails() {
 path = "X.xcworkspace"
 scheme = "X"
 configuration = "Debug"
+
+[project.configurations.Debug]
 bundle_id = "com.x"
 product_name = "X"
 "#,

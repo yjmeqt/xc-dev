@@ -10,12 +10,17 @@ schema_version = 1
 path             = "BedTerm.xcworkspace"
 scheme           = "BedTerm"
 configuration    = "Debug"
+
+[project.configurations.Debug]
 bundle_id        = "com.applovin.yi.bedterm"
 product_name     = "BedTerm"
 "#;
     let p = xc_dev::config::project::parse(toml).unwrap();
     assert_eq!(p.project.scheme, "BedTerm");
-    assert_eq!(p.project.bundle_id, "com.applovin.yi.bedterm");
+    assert_eq!(
+        p.project.configurations["Debug"].bundle_id,
+        "com.applovin.yi.bedterm"
+    );
     assert!(p.project.derived_data.is_none());
     assert!(p.vars.is_empty());
 }
@@ -28,9 +33,11 @@ schema_version = 1
 path = "X.xcworkspace"
 scheme = "X"
 configuration = "Debug"
+derived_data = "/tmp/dd"
+
+[project.configurations.Debug]
 bundle_id = "x"
 product_name = "X"
-derived_data = "/tmp/dd"
 
 [vars]
 xcbeautify = "xcbeautify --quiet"
@@ -162,6 +169,8 @@ schema_version = 1
 path = "X.xcworkspace"
 scheme = "X"
 configuration = "Debug"
+
+[project.configurations.Debug]
 bundle_id = "x"
 product_name = "X"
 
@@ -185,6 +194,8 @@ schema_version = 1
 path = "X.xcworkspace"
 scheme = "X"
 configuration = "Debug"
+
+[project.configurations.Debug]
 bundle_id = "x"
 product_name = "X"
 
@@ -240,6 +251,8 @@ schema_version = 1
 path = "X.xcworkspace"
 scheme = "X"
 configuration = "Debug"
+
+[project.configurations.Debug]
 bundle_id = "x"
 product_name = "X"
 
@@ -259,14 +272,16 @@ cmd = "echo"
 }
 
 #[test]
-fn parses_project_configurations_overrides() {
+fn parses_project_configurations_blocks() {
     let toml = r#"
 schema_version = 1
 [project]
 path = "MyApp.xcworkspace"
 scheme = "MyApp"
 configuration = "Debug"
-bundle_id = "com.example.myapp.debug"
+
+[project.configurations.Debug]
+bundle_id    = "com.example.myapp.debug"
 product_name = "MyApp Dev"
 
 [project.configurations.Release]
@@ -274,23 +289,70 @@ bundle_id    = "com.example.myapp"
 product_name = "MyApp"
 
 [project.configurations.AdHoc]
-bundle_id = "com.example.myapp.adhoc"
+bundle_id    = "com.example.myapp.adhoc"
+product_name = "MyApp AdHoc"
 "#;
     let p = xc_dev::config::project::parse(toml).unwrap();
-    assert_eq!(p.project.bundle_id, "com.example.myapp.debug");
-    assert_eq!(p.project.product_name, "MyApp Dev");
+
+    let debug = p.project.configurations.get("Debug").expect("Debug config");
+    assert_eq!(debug.bundle_id, "com.example.myapp.debug");
+    assert_eq!(debug.product_name, "MyApp Dev");
 
     let release = p
         .project
         .configurations
         .get("Release")
         .expect("Release config");
-    assert_eq!(release.bundle_id.as_deref(), Some("com.example.myapp"));
-    assert_eq!(release.product_name.as_deref(), Some("MyApp"));
+    assert_eq!(release.bundle_id, "com.example.myapp");
+    assert_eq!(release.product_name, "MyApp");
 
     let adhoc = p.project.configurations.get("AdHoc").expect("AdHoc config");
-    assert_eq!(adhoc.bundle_id.as_deref(), Some("com.example.myapp.adhoc"));
-    assert!(adhoc.product_name.is_none(), "product_name omitted → None");
+    assert_eq!(adhoc.bundle_id, "com.example.myapp.adhoc");
+    assert_eq!(adhoc.product_name, "MyApp AdHoc");
+}
+
+#[test]
+fn missing_bundle_id_in_configuration_block_is_parse_error() {
+    let toml = r#"
+schema_version = 1
+[project]
+path = "X.xcworkspace"
+scheme = "X"
+configuration = "Debug"
+
+[project.configurations.Debug]
+product_name = "X"
+"#;
+    // bundle_id is required in Configuration — serde should reject this.
+    let err = xc_dev::config::project::parse(toml).unwrap_err();
+    let s = err.to_string();
+    assert!(
+        s.contains("bundle_id") || s.contains("missing field"),
+        "expected parse error mentioning bundle_id, got: {s}"
+    );
+}
+
+#[test]
+fn missing_default_configuration_block_is_validation_error() {
+    let toml = r#"
+schema_version = 1
+[project]
+path = "X.xcworkspace"
+scheme = "X"
+configuration = "Beta"
+
+[project.configurations.Debug]
+bundle_id    = "com.example.x"
+product_name = "X"
+"#;
+    // [project].configuration = "Beta" but no [project.configurations.Beta] block.
+    let p = xc_dev::config::project::parse(toml).unwrap();
+    let err = xc_dev::vars::validate_project(&p).unwrap_err();
+    let s = err.to_string();
+    assert!(
+        s.contains("Beta") && s.contains("no [project.configurations.Beta]"),
+        "unexpected error: {s}"
+    );
 }
 
 #[test]

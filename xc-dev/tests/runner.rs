@@ -248,6 +248,8 @@ schema_version = 1
 path = "X.xcworkspace"
 scheme = "Hello"
 configuration = "Debug"
+
+[project.configurations.Debug]
 bundle_id = "com.x"
 product_name = "X"
 "#,
@@ -357,6 +359,8 @@ schema_version = 1
 path = "X.xcworkspace"
 scheme = "Hello"
 configuration = "Debug"
+
+[project.configurations.Debug]
 bundle_id = "com.x"
 product_name = "X"
 "#,
@@ -402,6 +406,8 @@ schema_version = 1
 path = "X.xcworkspace"
 scheme = "X"
 configuration = "Debug"
+
+[project.configurations.Debug]
 bundle_id = "com.x"
 product_name = "X"
 "#,
@@ -439,6 +445,8 @@ schema_version = 1
 path = "X.xcworkspace"
 scheme = "Hello"
 configuration = "Debug"
+
+[project.configurations.Debug]
 bundle_id = "com.x"
 product_name = "X"
 "#,
@@ -478,7 +486,9 @@ schema_version = 1
 path = "X.xcworkspace"
 scheme = "Hello"
 configuration = "Debug"
-bundle_id = "com.x.debug"
+
+[project.configurations.Debug]
+bundle_id    = "com.x.debug"
 product_name = "X Debug"
 
 [project.configurations.Release]
