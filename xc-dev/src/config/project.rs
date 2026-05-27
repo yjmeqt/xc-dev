@@ -21,6 +21,18 @@ pub struct Project {
     pub min_ios_version: String,
     #[serde(default)]
     pub derived_data: Option<String>,
+    #[serde(default)]
+    pub configurations: BTreeMap<String, ConfigurationOverrides>,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct ConfigurationOverrides {
+    #[serde(default)]
+    pub bundle_id: Option<String>,
+    #[serde(default)]
+    pub product_name: Option<String>,
+    #[serde(default)]
+    pub min_ios_version: Option<String>,
 }
 
 pub fn parse(s: &str) -> Result<ProjectFile> {
