@@ -217,10 +217,12 @@ impl Vars {
                     })?;
                 // Render sim.name through a restricted resolver (no sim_* recursion).
                 let rendered_name = self.render_sim_name(&sim.name);
-                let udid =
-                    self.sim_resolver
-                        .borrow_mut()
-                        .resolve(&rendered_name, device, &sim.runtime)?;
+                let udid = self.sim_resolver.borrow_mut().resolve(
+                    label,
+                    &rendered_name,
+                    device,
+                    &sim.runtime,
+                )?;
                 Ok(Some(udid))
             }
             "sim_name" | "name" => Ok(Some(self.render_sim_name(&sim.name))),

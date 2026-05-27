@@ -2,19 +2,26 @@
 //!
 //! When `[sim.<label>]` has no `id`, but has `device` + `runtime`, the UDID is
 //! looked up (or created) via `xcrun simctl`, then cached to
-//! `<xc_dev_dir>/.sim-cache.json`.
+//! `<xc_dev_dir>/simulator.local.toml`.
 
 use crate::error::{Result, XcDevError};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-/// In-memory + on-disk cache of `sim_name -> UDID` entries.
+/// File name of the on-disk UDID cache.
+pub const CACHE_FILE: &str = "simulator.local.toml";
+
+/// In-memory + on-disk cache of `label -> UDID` entries.
 ///
-/// Cache file: `<xc_dev_dir>/.sim-cache.json`.
-/// Format: `{ "<name>": "<udid>", ... }`.
+/// Cache file: `<xc_dev_dir>/simulator.local.toml`.
+/// Format:
+/// ```toml
+/// [sim.default]
+/// id = "ABC-DEF-..."
+/// ```
 pub struct SimResolver {
     cache_path: PathBuf,
-    /// In-memory map of `"<name>" → <udid>`.
+    /// In-memory map of `"<label>" → <udid>`.
     cache: HashMap<String, String>,
     /// Whether the cache was loaded / validated from disk already.
     loaded: bool,
@@ -23,27 +30,34 @@ pub struct SimResolver {
 impl SimResolver {
     pub fn new(xc_dev_dir: &Path) -> Self {
         Self {
-            cache_path: xc_dev_dir.join(".sim-cache.json"),
+            cache_path: xc_dev_dir.join(CACHE_FILE),
             cache: HashMap::new(),
             loaded: false,
         }
     }
 
     /// Return the UDID for a simulator entry.
-    /// `name` is the (template-rendered) `sim.name` value — used as the cache key.
+    /// `label` is the `[sim.<label>]` key from `simulator.toml` (e.g. "default", "ipad").
+    /// `rendered_name` is the template-rendered `sim.name` value.
     /// `device` is the device type (e.g. "iPhone 16").
     /// `runtime` is the runtime string (e.g. "iOS 26.2").
-    pub fn resolve(&mut self, name: &str, device: &str, runtime: &str) -> Result<String> {
+    pub fn resolve(
+        &mut self,
+        label: &str,
+        rendered_name: &str,
+        device: &str,
+        runtime: &str,
+    ) -> Result<String> {
         // Ensure cache is loaded + validated.
         self.ensure_loaded()?;
 
-        if let Some(udid) = self.cache.get(name) {
+        if let Some(udid) = self.cache.get(label) {
             return Ok(udid.clone());
         }
 
         // Not in cache — look it up or create it.
-        let udid = self.find_or_create(name, device, runtime)?;
-        self.cache.insert(name.to_string(), udid.clone());
+        let udid = self.find_or_create(rendered_name, device, runtime)?;
+        self.cache.insert(label.to_string(), udid.clone());
         self.persist()?;
         Ok(udid)
     }
@@ -64,7 +78,7 @@ impl SimResolver {
             source,
         })?;
 
-        let on_disk: HashMap<String, String> = serde_json::from_str(&raw).unwrap_or_default();
+        let on_disk = parse_cache_toml(&raw);
 
         // Validate each cached UDID — drop stale entries.
         let live_udids = live_udid_set()?;
@@ -77,27 +91,73 @@ impl SimResolver {
         Ok(())
     }
 
-    /// Find an existing simulator matching `name` + `runtime`, or create one.
-    fn find_or_create(&self, name: &str, device: &str, runtime: &str) -> Result<String> {
+    /// Find an existing simulator matching `rendered_name` + `runtime`, or create one.
+    fn find_or_create(&self, rendered_name: &str, device: &str, runtime: &str) -> Result<String> {
         // Try to find an existing device with this name and runtime.
-        if let Some(udid) = find_existing(name, runtime)? {
+        if let Some(udid) = find_existing(rendered_name, runtime)? {
             return Ok(udid);
         }
 
         // Create a new one.
-        create_simulator(name, device, runtime)
+        create_simulator(rendered_name, device, runtime)
     }
 
-    /// Write the in-memory cache to disk.
+    /// Write the in-memory cache to disk atomically.
     fn persist(&self) -> Result<()> {
-        let json = serde_json::to_string_pretty(&self.cache)
-            .map_err(|e| XcDevError::Other(format!("failed to serialize sim cache: {e}")))?;
-        std::fs::write(&self.cache_path, json).map_err(|source| XcDevError::Io {
+        let contents = serialize_cache_toml(&self.cache);
+        // Atomic write: write to temp file then rename.
+        let dir = self.cache_path.parent().unwrap_or(Path::new("."));
+        let tmp_path = dir.join(format!(".sim-cache-tmp-{}.toml", std::process::id()));
+        std::fs::write(&tmp_path, &contents).map_err(|source| XcDevError::Io {
+            path: tmp_path.clone(),
+            source,
+        })?;
+        std::fs::rename(&tmp_path, &self.cache_path).map_err(|source| XcDevError::Io {
             path: self.cache_path.clone(),
             source,
         })?;
         Ok(())
     }
+}
+
+// ─── TOML cache serialization ────────────────────────────────────────────────
+
+/// Parse the on-disk TOML cache into a `HashMap<label, udid>`.
+/// Tolerates missing file or malformed TOML (returns empty map).
+fn parse_cache_toml(raw: &str) -> HashMap<String, String> {
+    // Expected structure: { sim: { <label>: { id: "<udid>" } } }
+    let value: toml::Value = match toml::from_str(raw) {
+        Ok(v) => v,
+        Err(_) => return HashMap::new(),
+    };
+    let mut map = HashMap::new();
+    if let Some(sim_table) = value.get("sim").and_then(|s| s.as_table()) {
+        for (label, entry) in sim_table {
+            if let Some(id) = entry.get("id").and_then(|v| v.as_str()) {
+                map.insert(label.clone(), id.to_string());
+            }
+        }
+    }
+    map
+}
+
+/// Serialize a `HashMap<label, udid>` into the TOML cache format.
+fn serialize_cache_toml(cache: &HashMap<String, String>) -> String {
+    let mut out = String::from(
+        "# .xc-dev/simulator.local.toml\n\
+         # Auto-managed by xc-dev. Per-machine UDID cache. Gitignored.\n\
+         # Do not edit by hand.\n",
+    );
+    // Sort by label for deterministic output.
+    let mut labels: Vec<&String> = cache.keys().collect();
+    labels.sort();
+    for label in labels {
+        let udid = &cache[label];
+        out.push('\n');
+        out.push_str(&format!("[sim.{label}]\n"));
+        out.push_str(&format!("id = \"{udid}\"\n"));
+    }
+    out
 }
 
 // ─── simctl helpers ──────────────────────────────────────────────────────────
@@ -347,4 +407,90 @@ fn runtime_key_matches(key: &str, normalized: &str) -> bool {
     let suffix = key.split('.').next_back().unwrap_or(key);
     suffix.to_lowercase() == normalized
         || suffix.to_lowercase().replace('-', ".") == normalized.replace('-', ".")
+}
+
+// ─── unit tests ──────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cache_toml_round_trip() {
+        let mut cache = HashMap::new();
+        cache.insert("default".to_string(), "ABC-DEF-1234".to_string());
+        cache.insert("ipad".to_string(), "GHI-JKL-5678".to_string());
+
+        let serialized = serialize_cache_toml(&cache);
+        // Should contain [sim.default] and [sim.ipad] sections.
+        assert!(serialized.contains("[sim.default]"));
+        assert!(serialized.contains("[sim.ipad]"));
+        assert!(serialized.contains("id = \"ABC-DEF-1234\""));
+        assert!(serialized.contains("id = \"GHI-JKL-5678\""));
+
+        // Round-trip: parse it back.
+        let parsed = parse_cache_toml(&serialized);
+        assert_eq!(
+            parsed.get("default").map(String::as_str),
+            Some("ABC-DEF-1234")
+        );
+        assert_eq!(parsed.get("ipad").map(String::as_str), Some("GHI-JKL-5678"));
+    }
+
+    #[test]
+    fn cache_toml_missing_file_is_empty() {
+        let parsed = parse_cache_toml("");
+        assert!(parsed.is_empty());
+    }
+
+    #[test]
+    fn cache_toml_invalid_toml_is_empty() {
+        let parsed = parse_cache_toml("not valid toml !!! [[[");
+        assert!(parsed.is_empty());
+    }
+
+    #[test]
+    fn cache_toml_single_entry() {
+        let raw = r#"
+# comment
+[sim.default]
+id = "MY-UDID-XXXX"
+"#;
+        let parsed = parse_cache_toml(raw);
+        assert_eq!(
+            parsed.get("default").map(String::as_str),
+            Some("MY-UDID-XXXX")
+        );
+        assert_eq!(parsed.len(), 1);
+    }
+
+    #[test]
+    fn resolver_starts_empty_with_no_cache_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _resolver = SimResolver::new(tmp.path());
+        // Cache file should not exist yet.
+        assert!(!tmp.path().join(CACHE_FILE).exists());
+    }
+
+    #[test]
+    fn resolver_tolerates_corrupt_cache() {
+        if !simctl_available() {
+            eprintln!("skipping: xcrun simctl not available");
+            return;
+        }
+
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join(CACHE_FILE), "not-valid-toml !!! [[[").unwrap();
+
+        // Should not panic; just start with an empty in-memory cache.
+        let _resolver = SimResolver::new(tmp.path());
+    }
+
+    fn simctl_available() -> bool {
+        std::process::Command::new("xcrun")
+            .args(["simctl", "help"])
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    }
 }

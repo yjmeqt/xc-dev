@@ -3,9 +3,8 @@
 //! Integration tests are skipped if `xcrun simctl` is not available or if no iOS
 //! runtime is present on the machine.
 
-use std::collections::HashMap;
 use tempfile::tempdir;
-use xc_dev::sim_resolver::SimResolver;
+use xc_dev::sim_resolver::{SimResolver, CACHE_FILE};
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -92,7 +91,16 @@ impl Drop for SimGuard {
 
 // ─── unit tests ──────────────────────────────────────────────────────────────
 
-/// The cache starts empty and persists entries to disk.
+/// The cache file should NOT exist before any resolution is performed.
+#[test]
+fn resolver_starts_empty_with_no_cache_file() {
+    let tmp = tempdir().unwrap();
+    let _resolver = SimResolver::new(tmp.path());
+    assert!(!tmp.path().join(CACHE_FILE).exists());
+}
+
+/// Write a valid simulator.local.toml cache and verify SimResolver loads it
+/// (by not panicking — stale entries are dropped by simctl validation).
 #[test]
 fn cache_persists_across_resolver_instances() {
     if !simctl_available() {
@@ -103,29 +111,18 @@ fn cache_persists_across_resolver_instances() {
     let tmp = tempdir().unwrap();
     let xc_dev_dir = tmp.path().to_path_buf();
 
-    // Write a fake cache file manually.
+    // Write a fake cache file in the new TOML format.
     let fake_udid = "FAKE-UDID-1234-5678-ABCD";
-    let fake_name = "xc-dev-cache-test";
-    let cache_content = serde_json::json!({ fake_name: fake_udid }).to_string();
-    std::fs::write(xc_dev_dir.join(".sim-cache.json"), &cache_content).unwrap();
+    let cache_content =
+        format!("# Auto-managed by xc-dev.\n\n[sim.default]\nid = \"{fake_udid}\"\n");
+    std::fs::write(xc_dev_dir.join(CACHE_FILE), &cache_content).unwrap();
 
     // A new resolver reading the file will either pick it up (if UDID happens
-    // to exist — unlikely) or drop it as stale. We can verify the file was read
-    // by checking the resolver doesn't error on a legitimate stale entry.
+    // to exist — unlikely) or drop it as stale. We verify it doesn't panic.
     let _resolver = SimResolver::new(&xc_dev_dir);
-    // (no assertion needed — just verifying it doesn't panic on load)
 }
 
-/// A resolver created against a dir with no cache file starts clean.
-#[test]
-fn resolver_starts_empty_with_no_cache_file() {
-    let tmp = tempdir().unwrap();
-    let _resolver = SimResolver::new(tmp.path());
-    // Cache file should not exist yet.
-    assert!(!tmp.path().join(".sim-cache.json").exists());
-}
-
-/// Invalid JSON in the cache file is tolerated (treated as empty cache).
+/// Invalid TOML in the cache file is tolerated (treated as empty cache).
 #[test]
 fn resolver_tolerates_corrupt_cache() {
     if !simctl_available() {
@@ -134,16 +131,46 @@ fn resolver_tolerates_corrupt_cache() {
     }
 
     let tmp = tempdir().unwrap();
-    std::fs::write(tmp.path().join(".sim-cache.json"), "not-valid-json!!!").unwrap();
+    std::fs::write(tmp.path().join(CACHE_FILE), "not-valid-toml !!! [[[").unwrap();
 
     // Should not panic; just start with an empty in-memory cache.
     let _resolver = SimResolver::new(tmp.path());
 }
 
+/// Round-trip: read a hand-written simulator.local.toml and verify the label + id.
+#[test]
+fn cache_toml_format_round_trip() {
+    let tmp = tempdir().unwrap();
+    let cache_path = tmp.path().join(CACHE_FILE);
+
+    // Write in the expected format.
+    std::fs::write(
+        &cache_path,
+        r#"# .xc-dev/simulator.local.toml
+# Auto-managed by xc-dev. Per-machine UDID cache. Gitignored.
+# Do not edit by hand.
+
+[sim.default]
+id = "AAAA-BBBB-CCCC"
+
+[sim.ipad]
+id = "DDDD-EEEE-FFFF"
+"#,
+    )
+    .unwrap();
+
+    // Verify the file parses as valid TOML and contains expected sections.
+    let raw = std::fs::read_to_string(&cache_path).unwrap();
+    let v: toml::Value = toml::from_str(&raw).expect("should be valid TOML");
+    let sim = v.get("sim").unwrap().as_table().unwrap();
+    assert_eq!(sim["default"]["id"].as_str(), Some("AAAA-BBBB-CCCC"));
+    assert_eq!(sim["ipad"]["id"].as_str(), Some("DDDD-EEEE-FFFF"));
+}
+
 // ─── integration test ────────────────────────────────────────────────────────
 
 /// Full round-trip: resolve a UDID (creates a new sim), then resolve again (cache hit),
-/// verify the cache file, and clean up via RAII guard.
+/// verify the cache file is in TOML format, and clean up via RAII guard.
 #[test]
 fn integration_resolve_and_cache() {
     if !simctl_available() {
@@ -185,7 +212,7 @@ fn integration_resolve_and_cache() {
 
     // First resolution: should create a new simulator.
     let mut resolver = SimResolver::new(&xc_dev_dir);
-    let udid1 = match resolver.resolve(&sim_name, &device, &runtime) {
+    let udid1 = match resolver.resolve("default", &sim_name, &device, &runtime) {
         Ok(u) => u,
         Err(e) => {
             eprintln!("skipping: resolver.resolve failed: {e}");
@@ -201,26 +228,32 @@ fn integration_resolve_and_cache() {
 
     eprintln!("integration_resolve_and_cache: created UDID={udid1}");
 
-    // Verify the cache file was written.
-    let cache_path = xc_dev_dir.join(".sim-cache.json");
+    // Verify the cache file was written in the new TOML format.
+    let cache_path = xc_dev_dir.join(CACHE_FILE);
     assert!(
         cache_path.exists(),
-        ".sim-cache.json should exist after first resolve"
+        "simulator.local.toml should exist after first resolve"
     );
 
     let cache_raw = std::fs::read_to_string(&cache_path).unwrap();
-    let cache_map: HashMap<String, String> =
-        serde_json::from_str(&cache_raw).expect("cache file should be valid JSON");
-    assert_eq!(
-        cache_map.get(&sim_name).map(String::as_str),
-        Some(udid1.as_str()),
-        "cache should contain sim_name → udid mapping"
+    // Verify it's valid TOML with [sim.default] section.
+    assert!(
+        cache_raw.contains("[sim.default]"),
+        "cache should contain [sim.default] section"
     );
+    let v: toml::Value = toml::from_str(&cache_raw).expect("cache file should be valid TOML");
+    let cached_udid = v
+        .get("sim")
+        .and_then(|s| s.get("default"))
+        .and_then(|d| d.get("id"))
+        .and_then(|i| i.as_str())
+        .expect("sim.default.id should be present");
+    assert_eq!(cached_udid, udid1, "cached UDID should match resolved UDID");
 
     // Second resolution (new resolver instance): should be a cache hit, same UDID.
     let mut resolver2 = SimResolver::new(&xc_dev_dir);
     let udid2 = resolver2
-        .resolve(&sim_name, &device, &runtime)
+        .resolve("default", &sim_name, &device, &runtime)
         .expect("second resolve should succeed");
     assert_eq!(
         udid1, udid2,
@@ -334,16 +367,23 @@ min_ios_version = "26.0"
     let udid2 = String::from_utf8(out2.stdout).unwrap().trim().to_string();
     assert_eq!(udid1, udid2, "second call should return same UDID");
 
-    // Verify cache file.
-    let cache_path = dotdir.join(".sim-cache.json");
-    assert!(cache_path.exists(), ".sim-cache.json should exist");
+    // Verify cache file is in TOML format.
+    let cache_path = dotdir.join(CACHE_FILE);
+    assert!(cache_path.exists(), "simulator.local.toml should exist");
     let cache_raw = std::fs::read_to_string(&cache_path).unwrap();
-    let cache_map: HashMap<String, String> =
-        serde_json::from_str(&cache_raw).expect("cache should be valid JSON");
+    // Verify [sim.default] section exists with correct UDID.
     assert!(
-        cache_map.values().any(|v| v == &udid1),
-        "cache should contain the UDID"
+        cache_raw.contains("[sim.default]"),
+        "cache should contain [sim.default]"
     );
+    let v: toml::Value = toml::from_str(&cache_raw).expect("cache should be valid TOML");
+    let cached_udid = v
+        .get("sim")
+        .and_then(|s| s.get("default"))
+        .and_then(|d| d.get("id"))
+        .and_then(|i| i.as_str())
+        .expect("sim.default.id should be in cache");
+    assert_eq!(cached_udid, udid1, "cache should contain the UDID");
 
     eprintln!("integration_get_sim_id_e2e: PASS");
 }
