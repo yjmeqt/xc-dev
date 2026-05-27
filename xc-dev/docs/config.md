@@ -5,22 +5,56 @@ scaffolds all three.
 
 ## `project.toml`
 
+### Single configuration (minimal)
+
 ```toml
 schema_version = 1
 
 [project]
-path             = "MyApp.xcworkspace"     # or "MyApp.xcodeproj"
-scheme           = "MyApp"
-configuration    = "Debug"
-bundle_id        = "com.example.myapp.debug"
-product_name     = "MyApp Dev"
+path          = "MyApp.xcworkspace"     # or "MyApp.xcodeproj"
+scheme        = "MyApp"
+configuration = "Debug"               # default; can be overridden per-task
 # Optional — override DerivedData location. Default is "{{xc_dev_dir}}/DerivedData".
-# derived_data   = "/Volumes/External/DerivedData/MyApp"
+# derived_data = "/Volumes/External/DerivedData/MyApp"
+
+[project.configurations.Debug]
+bundle_id    = "com.example.myapp.debug"
+product_name = "MyApp Dev"
 
 [vars]
 # Optional — your own custom variables, accessible as {{name}} in tasks.
 xcbeautify = "xcbeautify --quiet"
 ```
+
+### Multiple configurations
+
+```toml
+schema_version = 1
+
+[project]
+path          = "MyApp.xcworkspace"
+scheme        = "MyApp"
+configuration = "Debug"
+
+[project.configurations.Debug]
+bundle_id    = "com.example.myapp.debug"
+product_name = "MyApp Dev"
+
+[project.configurations.Release]
+bundle_id    = "com.example.myapp"
+product_name = "MyApp"
+
+[project.configurations.AdHoc]
+bundle_id    = "com.example.myapp.adhoc"
+product_name = "MyApp"
+```
+
+Every configuration that you reference (directly or via a task's `configuration` field)
+**must** have its own `[project.configurations.<name>]` block with both `bundle_id` and
+`product_name`. There is no fallback — missing blocks are a startup error.
+
+`xc-dev :proj init` detects all configurations via `xcodebuild -list -json` and emits a
+full block for each one automatically.
 
 ### Fields
 
@@ -30,42 +64,14 @@ xcbeautify = "xcbeautify --quiet"
 | `[project].path` | string | yes | `.xcworkspace` or `.xcodeproj`, relative to project root. |
 | `[project].scheme` | string | yes | Xcode scheme name. |
 | `[project].configuration` | string | yes | Default configuration, e.g. `Debug`. Used when a task has no `configuration` field. |
-| `[project].bundle_id` | string | yes | App bundle identifier for the default configuration. |
-| `[project].product_name` | string | yes | Used to derive `{{app_path}}` for the default configuration. |
 | `[project].derived_data` | string | no | Default: `{{xc_dev_dir}}/DerivedData` (per-worktree isolation). |
+| `[project.configurations.<name>].bundle_id` | string | yes | App bundle identifier for this configuration. |
+| `[project.configurations.<name>].product_name` | string | yes | Used to derive `{{app_path}}` for this configuration. |
 | `[vars].<key>` | string | no | User-defined variables. See [variables.md](variables.md). |
 
-`[vars]` keys cannot collide with reserved variable names (see [variables.md](variables.md)).
-
-### Per-configuration overrides
-
-Xcode projects often have multiple configurations (Debug, Release, AdHoc, Beta, …) each
-with different `PRODUCT_BUNDLE_IDENTIFIER`, `PRODUCT_NAME`, or deployment target. Declare
-overrides under `[project.configurations.<name>]`:
-
-```toml
-[project]
-scheme         = "MyApp"
-configuration  = "Debug"
-bundle_id      = "com.example.myapp.debug"
-product_name   = "MyApp Dev"
-
-[project.configurations.Release]
-bundle_id    = "com.example.myapp"
-product_name = "MyApp"
-
-[project.configurations.AdHoc]
-bundle_id = "com.example.myapp.adhoc"
-# product_name omitted — falls back to [project].product_name
-```
-
-Both override keys (`bundle_id`, `product_name`) are optional within each
-`[project.configurations.<name>]` block. Omitted keys fall back to the corresponding
-`[project]` value.
-
-`xc-dev :proj init` detects these automatically by calling `xcodebuild -showBuildSettings`
-for each configuration and emitting override blocks only for values that differ from the
-default configuration.
+A `[project.configurations.<name>]` block is **required** for every configuration name
+used — including `[project].configuration` (the default). `[vars]` keys cannot collide
+with reserved variable names (see [variables.md](variables.md)).
 
 ## `simulator.toml`
 
