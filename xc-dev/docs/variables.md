@@ -146,19 +146,8 @@ becomes available as `{{path}}`, `{{scheme}}`, `{{configuration}}`, `{{bundle_id
 
 ## Simulator variables
 
-`simulator.toml` declares one or more labeled simulators:
-
-```toml
-[sim.default]
-id      = "ABC-123-…"
-name    = "iPhone 17 Pro"
-runtime = "iOS 26.2"
-
-[sim.ipad]
-id      = "DEF-456-…"
-name    = "iPad Pro 11"
-runtime = "iOS 26.2"
-```
+`simulator.toml` declares one or more labeled simulators. The `[sim.default]` block is the
+implicit target for the shorthand variables.
 
 Access:
 
@@ -166,6 +155,53 @@ Access:
 - `{{sim.<label>.<field>}}` — any sim, any field. Example: `{{sim.ipad.id}}`.
 
 If `[sim.default]` isn't defined and you reference `{{sim_id}}`, you'll get `UnknownVar`.
+
+### Self-resolving simulators (lazy — triggered only by `{{sim_id}}`)
+
+The recommended approach: set `device` + `runtime` and let xc-dev manage the UDID.
+
+```toml
+[sim.default]
+name    = "xc-dev-default"
+device  = "iPhone 16"
+runtime = "iOS 26.2"
+```
+
+`{{sim_id}}` triggers resolution:
+1. Load cache from `.xc-dev/.sim-cache.json` (per-machine, gitignored).
+2. Validate cached UDIDs against `xcrun simctl list devices --json`; drop stale entries.
+3. If a cache hit exists, return it immediately.
+4. Otherwise look for an existing simulator with matching `name` + `runtime`.
+5. If none found, create one via `xcrun simctl create <name> <device-type> <runtime>`.
+6. Write the UDID to cache.
+
+`{{sim_name}}` and `{{sim_runtime}}` do **not** trigger any simctl calls — they return the
+literal template values (after template rendering, see below).
+
+The `name` value may contain template variables, e.g.:
+
+```toml
+name = "{{git_worktree_name}}-sim"
+```
+
+Variables whose names start with `sim` are excluded from this rendering step to prevent
+recursion. All other variables (git vars, project fields, auto vars) are available.
+
+### Pinned UDID
+
+When `id` is set it is used directly — no simctl calls, no cache.
+
+```toml
+[sim.default]
+id      = "ABC-123-XXXX-…"
+name    = "iPhone 17 Pro"
+runtime = "iOS 26.2"
+```
+
+### Doctor validation
+
+`xc-dev :doctor` emits `WARN sim.<label>: neither id nor device is set` for entries that
+would fail at runtime if `{{sim_id}}` were referenced.
 
 ## Custom `[vars]`
 
