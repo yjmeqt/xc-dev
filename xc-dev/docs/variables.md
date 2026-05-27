@@ -13,10 +13,9 @@ at the first match:
 2. **`[vars]`** — user-defined keys in `project.toml`.
 3. **Simulator shortcuts** — `sim_id`, `sim_name`, `sim_runtime` resolve to `[sim.default]`.
 4. **Simulator qualified** — `sim.<label>.<field>` for non-default labels.
-5. **`[project]` fields** — `scheme`, `bundle_id`, `product_name`, `configuration`,
-   `path`. For `bundle_id`, `product_name`, and `configuration`, the resolved value is
-   the **effective configuration** for the task (see below), not always the literal
-   `[project]` value.
+5. **`[project]` fields** — `scheme`, `configuration`, `path`. For `bundle_id` and
+   `product_name`, the value comes from `[project.configurations.<effective_config>]`
+   (see below). `{{configuration}}` resolves to `effective_config`.
 6. **Automatic variables** — listed below.
 7. **Git variables** — listed below; lazy-evaluated and cached.
 
@@ -101,10 +100,13 @@ effective_config = task.configuration  (if set)
                   OR  project.configuration  (fallback)
 ```
 
-The engine consults `[project.configurations.<effective_config>]` first. If a value is
-present in that override block it wins; otherwise the `[project]` field is used.
+`{{bundle_id}}` and `{{product_name}}` are looked up from
+`[project.configurations.<effective_config>]`. That block **must** exist — if it doesn't,
+xc-dev exits with an error: `no configuration '<name>' defined in project.toml`.
+
 `{{configuration}}` resolves to `effective_config`, not always the literal
-`[project].configuration`.
+`[project].configuration`. There is no fallback — every configuration you reference
+requires its own `[project.configurations.<name>]` block.
 
 Automatic path variables that include the configuration or product name
 (`{{build_products_dir}}`, `{{app_path}}`) also use the effective values, so they
@@ -124,24 +126,28 @@ xcodebuild -scheme {{scheme}} \
 ```
 
 When this task runs, `{{bundle_id}}` resolves from
-`[project.configurations.Release].bundle_id` (if present), and `{{app_path}}` points
+`[project.configurations.Release].bundle_id`, and `{{app_path}}` points
 to `…/Release-iphonesimulator/MyApp.app`.
 
 ## Project fields
 
-The fields under `[project]` are exposed as flat top-level names. Example:
+The `[project]` fields `path`, `scheme`, `configuration` are exposed as flat top-level
+names. `bundle_id` and `product_name` come from `[project.configurations.<effective_config>]`.
+
+Example:
 
 ```toml
 [project]
-path             = "MyApp.xcworkspace"
-scheme           = "MyApp"
-configuration    = "Debug"
-bundle_id        = "com.example.myapp"
-product_name     = "MyApp"
+path          = "MyApp.xcworkspace"
+scheme        = "MyApp"
+configuration = "Debug"
+
+[project.configurations.Debug]
+bundle_id    = "com.example.myapp"
+product_name = "MyApp"
 ```
 
-becomes available as `{{path}}`, `{{scheme}}`, `{{configuration}}`, `{{bundle_id}}`,
-`{{product_name}}`.
+gives `{{path}}`, `{{scheme}}`, `{{configuration}}`, `{{bundle_id}}`, `{{product_name}}`.
 
 ## Simulator variables
 
