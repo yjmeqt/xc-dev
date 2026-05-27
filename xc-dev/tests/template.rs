@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
-use xc_dev::config::project::{Project, ProjectFile};
+use xc_dev::config::project::{ConfigurationOverrides, Project, ProjectFile};
 use xc_dev::config::simulator::{Sim, SimulatorFile};
 use xc_dev::template;
 use xc_dev::vars::Vars;
@@ -16,6 +16,7 @@ fn pf() -> ProjectFile {
             product_name: "X".into(),
             min_ios_version: "26.0".into(),
             derived_data: None,
+            configurations: BTreeMap::new(),
         },
         vars: BTreeMap::from([("xcbeautify".to_string(), "xcb".to_string())]),
     }
@@ -47,27 +48,59 @@ fn sf() -> SimulatorFile {
 
 #[test]
 fn resolves_project_field() {
-    let v = Vars::build(PathBuf::from("/tmp/p"), pf(), sf(), BTreeMap::new(), "t").unwrap();
+    let v = Vars::build(
+        PathBuf::from("/tmp/p"),
+        pf(),
+        sf(),
+        BTreeMap::new(),
+        "t",
+        "Debug".into(),
+    )
+    .unwrap();
     assert_eq!(v.resolve("scheme"), Some("X".into()));
     assert_eq!(v.resolve("bundle_id"), Some("com.x".into()));
 }
 
 #[test]
 fn resolves_user_var() {
-    let v = Vars::build(PathBuf::from("/tmp/p"), pf(), sf(), BTreeMap::new(), "t").unwrap();
+    let v = Vars::build(
+        PathBuf::from("/tmp/p"),
+        pf(),
+        sf(),
+        BTreeMap::new(),
+        "t",
+        "Debug".into(),
+    )
+    .unwrap();
     assert_eq!(v.resolve("xcbeautify"), Some("xcb".into()));
 }
 
 #[test]
 fn resolves_default_sim_shortcuts() {
-    let v = Vars::build(PathBuf::from("/tmp/p"), pf(), sf(), BTreeMap::new(), "t").unwrap();
+    let v = Vars::build(
+        PathBuf::from("/tmp/p"),
+        pf(),
+        sf(),
+        BTreeMap::new(),
+        "t",
+        "Debug".into(),
+    )
+    .unwrap();
     assert_eq!(v.resolve("sim_id"), Some("ABC".into()));
     assert_eq!(v.resolve("sim_name"), Some("iPhone".into()));
 }
 
 #[test]
 fn resolves_qualified_sim() {
-    let v = Vars::build(PathBuf::from("/tmp/p"), pf(), sf(), BTreeMap::new(), "t").unwrap();
+    let v = Vars::build(
+        PathBuf::from("/tmp/p"),
+        pf(),
+        sf(),
+        BTreeMap::new(),
+        "t",
+        "Debug".into(),
+    )
+    .unwrap();
     assert_eq!(v.resolve("sim.ipad.id"), Some("DEF".into()));
 }
 
@@ -76,13 +109,29 @@ fn resolves_args_highest_priority() {
     // NOTE: reserved-name enforcement (Task 9) will eventually forbid using
     // a project field name as an arg, but until then args win on shadow.
     let args = BTreeMap::from([("config".into(), "Release".into())]);
-    let v = Vars::build(PathBuf::from("/tmp/p"), pf(), sf(), args, "t").unwrap();
+    let v = Vars::build(
+        PathBuf::from("/tmp/p"),
+        pf(),
+        sf(),
+        args,
+        "t",
+        "Debug".into(),
+    )
+    .unwrap();
     assert_eq!(v.resolve("config"), Some("Release".into()));
 }
 
 #[test]
 fn auto_vars_paths_and_derived_data() {
-    let v = Vars::build(PathBuf::from("/tmp/p"), pf(), sf(), BTreeMap::new(), "t").unwrap();
+    let v = Vars::build(
+        PathBuf::from("/tmp/p"),
+        pf(),
+        sf(),
+        BTreeMap::new(),
+        "t",
+        "Debug".into(),
+    )
+    .unwrap();
     assert_eq!(v.resolve("project_root"), Some("/tmp/p".into()));
     assert_eq!(v.resolve("xc_dev_dir"), Some("/tmp/p/.xc-dev".into()));
     assert_eq!(
@@ -101,7 +150,15 @@ fn auto_vars_paths_and_derived_data() {
 
 #[test]
 fn auto_var_user_and_home() {
-    let v = Vars::build(PathBuf::from("/tmp/p"), pf(), sf(), BTreeMap::new(), "t").unwrap();
+    let v = Vars::build(
+        PathBuf::from("/tmp/p"),
+        pf(),
+        sf(),
+        BTreeMap::new(),
+        "t",
+        "Debug".into(),
+    )
+    .unwrap();
     assert_eq!(v.resolve("user"), std::env::var("USER").ok());
     assert_eq!(v.resolve("home"), std::env::var("HOME").ok());
 }
@@ -110,7 +167,15 @@ fn auto_var_user_and_home() {
 fn auto_var_custom_derived_data() {
     let mut p = pf();
     p.project.derived_data = Some("/custom/dd".into());
-    let v = Vars::build(PathBuf::from("/tmp/p"), p, sf(), BTreeMap::new(), "t").unwrap();
+    let v = Vars::build(
+        PathBuf::from("/tmp/p"),
+        p,
+        sf(),
+        BTreeMap::new(),
+        "t",
+        "Debug".into(),
+    )
+    .unwrap();
     assert_eq!(v.resolve("derived_data"), Some("/custom/dd".into()));
     assert_eq!(
         v.resolve("build_products_dir"),
@@ -187,7 +252,15 @@ fn git_branch_in_real_repo() {
         return;
     } // not in a git repo; skip
     let project_root = std::path::PathBuf::from(String::from_utf8(out.stdout).unwrap().trim());
-    let v = Vars::build(project_root.clone(), pf(), sf(), BTreeMap::new(), "t").unwrap();
+    let v = Vars::build(
+        project_root.clone(),
+        pf(),
+        sf(),
+        BTreeMap::new(),
+        "t",
+        "Debug".into(),
+    )
+    .unwrap();
     let b = v
         .try_resolve("git_branch")
         .unwrap()
@@ -211,7 +284,15 @@ fn git_branch_in_real_repo() {
 #[test]
 fn git_unavailable_in_non_git_dir() {
     let tmp = tempfile::tempdir().unwrap();
-    let v = Vars::build(tmp.path().to_path_buf(), pf(), sf(), BTreeMap::new(), "t").unwrap();
+    let v = Vars::build(
+        tmp.path().to_path_buf(),
+        pf(),
+        sf(),
+        BTreeMap::new(),
+        "t",
+        "Debug".into(),
+    )
+    .unwrap();
     let r = v.try_resolve("git_branch");
     assert!(
         matches!(r, Err(xc_dev::error::XcDevError::VarUnavailable { .. })),
@@ -224,9 +305,108 @@ fn git_unavailable_in_non_git_dir() {
 #[test]
 fn git_unknown_name_returns_ok_none() {
     let cwd = std::env::current_dir().unwrap();
-    let v = Vars::build(cwd, pf(), sf(), BTreeMap::new(), "t").unwrap();
+    let v = Vars::build(cwd, pf(), sf(), BTreeMap::new(), "t", "Debug".into()).unwrap();
     // "git_foo" isn't one of the supported names; try_resolve should return Ok(None)
     // (not VarUnavailable), so the template engine reports UnknownVar instead.
     let r = v.try_resolve("git_foo").unwrap();
     assert!(r.is_none());
+}
+
+fn pf_with_release_override() -> ProjectFile {
+    let mut confs = BTreeMap::new();
+    confs.insert(
+        "Release".to_string(),
+        ConfigurationOverrides {
+            bundle_id: Some("com.x.release".to_string()),
+            product_name: Some("X Release".to_string()),
+            min_ios_version: None,
+        },
+    );
+    ProjectFile {
+        schema_version: 1,
+        project: Project {
+            path: "X.xcworkspace".into(),
+            scheme: "X".into(),
+            configuration: "Debug".into(),
+            bundle_id: "com.x".into(),
+            product_name: "X".into(),
+            min_ios_version: "26.0".into(),
+            derived_data: None,
+            configurations: confs,
+        },
+        vars: BTreeMap::new(),
+    }
+}
+
+#[test]
+fn per_config_bundle_id_resolves_from_override() {
+    let p = pf_with_release_override();
+    let v = Vars::build(
+        PathBuf::from("/tmp/p"),
+        p,
+        sf(),
+        BTreeMap::new(),
+        "t",
+        "Release".into(),
+    )
+    .unwrap();
+    assert_eq!(v.resolve("bundle_id"), Some("com.x.release".into()));
+    assert_eq!(v.resolve("product_name"), Some("X Release".into()));
+    // min_ios_version not overridden → falls back to [project]
+    assert_eq!(v.resolve("min_ios_version"), Some("26.0".into()));
+}
+
+#[test]
+fn per_config_falls_back_to_project_when_no_override() {
+    let p = pf_with_release_override();
+    // Debug doesn't have an override entry → uses [project]
+    let v = Vars::build(
+        PathBuf::from("/tmp/p"),
+        p,
+        sf(),
+        BTreeMap::new(),
+        "t",
+        "Debug".into(),
+    )
+    .unwrap();
+    assert_eq!(v.resolve("bundle_id"), Some("com.x".into()));
+    assert_eq!(v.resolve("product_name"), Some("X".into()));
+}
+
+#[test]
+fn configuration_resolves_to_effective_config() {
+    let p = pf_with_release_override();
+    let v = Vars::build(
+        PathBuf::from("/tmp/p"),
+        p,
+        sf(),
+        BTreeMap::new(),
+        "t",
+        "Release".into(),
+    )
+    .unwrap();
+    assert_eq!(v.resolve("configuration"), Some("Release".into()));
+}
+
+#[test]
+fn app_path_uses_effective_config_and_product_name() {
+    let p = pf_with_release_override();
+    let v = Vars::build(
+        PathBuf::from("/tmp/p"),
+        p,
+        sf(),
+        BTreeMap::new(),
+        "t",
+        "Release".into(),
+    )
+    .unwrap();
+    let app_path = v.resolve("app_path").unwrap();
+    assert!(
+        app_path.contains("Release-iphonesimulator"),
+        "expected Release-iphonesimulator in app_path, got: {app_path}"
+    );
+    assert!(
+        app_path.ends_with("/X Release.app"),
+        "expected effective product_name in app_path, got: {app_path}"
+    );
 }

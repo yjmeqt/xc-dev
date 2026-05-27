@@ -75,4 +75,13 @@ fn init_autodetects_against_real_xcodeproj_fixture() {
         toml.contains(r#"product_name     = "HelloDemo""#),
         "expected product_name detection:\n{toml}"
     );
+    // Release configuration has a different bundle_id → should produce an override block.
+    assert!(
+        toml.contains("[project.configurations.Release]"),
+        "expected [project.configurations.Release] block:\n{toml}"
+    );
+    assert!(
+        toml.contains(r#"bundle_id        = "com.example.HelloDemo.release""#),
+        "expected Release bundle_id override:\n{toml}"
+    );
 }

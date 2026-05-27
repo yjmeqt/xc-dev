@@ -314,3 +314,68 @@ cmd = "cat {{xc_dev_dir}}/marker"
         "depends chain should have run upstream first; got:\n{stdout}"
     );
 }
+
+#[test]
+fn e2e_task_configuration_resolves_release_bundle_id() {
+    if !xcodebuild_available() {
+        eprintln!("skipping: xcodebuild not on PATH");
+        return;
+    }
+    let fixture = fixture_root();
+    if !fixture.exists() {
+        eprintln!("skipping: fixture not present at {}", fixture.display());
+        return;
+    }
+
+    // 1. Copy fixture to tempdir and run :proj init (autodetects multi-config).
+    let tmp = tempdir().unwrap();
+    copy_dir_recursive(&fixture, tmp.path()).unwrap();
+    Command::cargo_bin("xc-dev")
+        .unwrap()
+        .current_dir(tmp.path())
+        .args([":proj", "init", "--yes"])
+        .assert()
+        .success();
+
+    // Verify the init produced the Release override block.
+    let project_toml = std::fs::read_to_string(tmp.path().join(".xc-dev/project.toml")).unwrap();
+    assert!(
+        project_toml.contains("[project.configurations.Release]"),
+        "expected Release config override block in project.toml:\n{project_toml}"
+    );
+
+    // 2. Write a probe task that uses configuration = "Release".
+    std::fs::write(
+        tmp.path().join(".xc-dev/tasks.toml"),
+        r#"
+[tasks.probe-release]
+configuration = "Release"
+cmd = "echo BUNDLE_ID={{bundle_id}} CONFIGURATION={{configuration}}"
+"#,
+    )
+    .unwrap();
+
+    // 3. Run the task and verify output.
+    let out = Command::cargo_bin("xc-dev")
+        .unwrap()
+        .current_dir(tmp.path())
+        .args(["probe-release"])
+        .output()
+        .expect("cmd ran");
+    assert!(
+        out.status.success(),
+        "probe-release failed (exit={:?})\nstderr:\n{}\nstdout:\n{}",
+        out.status.code(),
+        String::from_utf8_lossy(&out.stderr),
+        String::from_utf8_lossy(&out.stdout)
+    );
+    let stdout = String::from_utf8(out.stdout).unwrap();
+    assert!(
+        stdout.contains("BUNDLE_ID=com.example.HelloDemo.release"),
+        "expected Release bundle_id in output:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("CONFIGURATION=Release"),
+        "expected CONFIGURATION=Release in output:\n{stdout}"
+    );
+}

@@ -470,3 +470,78 @@ cmd = "true"
         "expected no `+ ` prefix on stderr without -v:\n{stderr}"
     );
 }
+
+fn write_project_with_config_overrides(dir: &std::path::Path, tasks_toml: &str) {
+    let dotdir = dir.join(".xc-dev");
+    std::fs::create_dir_all(&dotdir).unwrap();
+    std::fs::write(
+        dotdir.join("project.toml"),
+        r#"
+schema_version = 1
+[project]
+path = "X.xcworkspace"
+scheme = "Hello"
+configuration = "Debug"
+bundle_id = "com.x.debug"
+product_name = "X Debug"
+min_ios_version = "26.0"
+
+[project.configurations.Release]
+bundle_id    = "com.x.release"
+product_name = "X Release"
+"#,
+    )
+    .unwrap();
+    std::fs::write(dotdir.join("simulator.toml"), "schema_version = 1\n").unwrap();
+    std::fs::write(dotdir.join("tasks.toml"), tasks_toml).unwrap();
+}
+
+#[test]
+fn task_configuration_field_resolves_release_bundle_id() {
+    let tmp = tempfile::tempdir().unwrap();
+    write_project_with_config_overrides(
+        tmp.path(),
+        r#"
+[tasks.show-id]
+configuration = "Release"
+cmd = "echo BUNDLE_ID={{bundle_id}}"
+"#,
+    );
+    let code = xc_dev::runner::run(tmp.path(), "show-id", &[], false).unwrap();
+    assert_eq!(code, 0);
+}
+
+#[test]
+fn task_without_configuration_uses_project_default() {
+    let tmp = tempfile::tempdir().unwrap();
+    write_project_with_config_overrides(
+        tmp.path(),
+        r#"
+[tasks.check-debug]
+cmd = "test \"{{bundle_id}}\" = \"com.x.debug\""
+"#,
+    );
+    let code = xc_dev::runner::run(tmp.path(), "check-debug", &[], false).unwrap();
+    assert_eq!(
+        code, 0,
+        "expected Debug bundle_id when no task.configuration"
+    );
+}
+
+#[test]
+fn task_configuration_release_uses_release_bundle_id() {
+    let tmp = tempfile::tempdir().unwrap();
+    write_project_with_config_overrides(
+        tmp.path(),
+        r#"
+[tasks.check-release]
+configuration = "Release"
+cmd = "test \"{{bundle_id}}\" = \"com.x.release\""
+"#,
+    );
+    let code = xc_dev::runner::run(tmp.path(), "check-release", &[], false).unwrap();
+    assert_eq!(
+        code, 0,
+        "expected Release bundle_id when task.configuration = Release"
+    );
+}
