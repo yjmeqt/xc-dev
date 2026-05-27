@@ -18,7 +18,6 @@ pub struct Project {
     pub configuration: String,
     pub bundle_id: String,
     pub product_name: String,
-    pub min_ios_version: String,
     #[serde(default)]
     pub derived_data: Option<String>,
     #[serde(default)]
@@ -31,8 +30,6 @@ pub struct ConfigurationOverrides {
     pub bundle_id: Option<String>,
     #[serde(default)]
     pub product_name: Option<String>,
-    #[serde(default)]
-    pub min_ios_version: Option<String>,
 }
 
 pub fn parse(s: &str) -> Result<ProjectFile> {

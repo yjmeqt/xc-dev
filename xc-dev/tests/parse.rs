@@ -12,7 +12,6 @@ scheme           = "BedTerm"
 configuration    = "Debug"
 bundle_id        = "com.applovin.yi.bedterm"
 product_name     = "BedTerm"
-min_ios_version  = "26.0"
 "#;
     let p = xc_dev::config::project::parse(toml).unwrap();
     assert_eq!(p.project.scheme, "BedTerm");
@@ -31,7 +30,6 @@ scheme = "X"
 configuration = "Debug"
 bundle_id = "x"
 product_name = "X"
-min_ios_version = "26.0"
 derived_data = "/tmp/dd"
 
 [vars]
@@ -166,7 +164,6 @@ scheme = "X"
 configuration = "Debug"
 bundle_id = "x"
 product_name = "X"
-min_ios_version = "26.0"
 
 [vars]
 git_branch = "naughty"
@@ -190,7 +187,6 @@ scheme = "X"
 configuration = "Debug"
 bundle_id = "x"
 product_name = "X"
-min_ios_version = "26.0"
 
 [vars]
 scheme = "override"
@@ -246,7 +242,6 @@ scheme = "X"
 configuration = "Debug"
 bundle_id = "x"
 product_name = "X"
-min_ios_version = "26.0"
 
 [vars]
 xcbeautify = "xcb"
@@ -273,7 +268,6 @@ scheme = "MyApp"
 configuration = "Debug"
 bundle_id = "com.example.myapp.debug"
 product_name = "MyApp Dev"
-min_ios_version = "26.0"
 
 [project.configurations.Release]
 bundle_id    = "com.example.myapp"
@@ -293,15 +287,10 @@ bundle_id = "com.example.myapp.adhoc"
         .expect("Release config");
     assert_eq!(release.bundle_id.as_deref(), Some("com.example.myapp"));
     assert_eq!(release.product_name.as_deref(), Some("MyApp"));
-    assert!(
-        release.min_ios_version.is_none(),
-        "min_ios_version omitted → None"
-    );
 
     let adhoc = p.project.configurations.get("AdHoc").expect("AdHoc config");
     assert_eq!(adhoc.bundle_id.as_deref(), Some("com.example.myapp.adhoc"));
     assert!(adhoc.product_name.is_none(), "product_name omitted → None");
-    assert!(adhoc.min_ios_version.is_none());
 }
 
 #[test]

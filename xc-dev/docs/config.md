@@ -14,7 +14,6 @@ scheme           = "MyApp"
 configuration    = "Debug"
 bundle_id        = "com.example.myapp.debug"
 product_name     = "MyApp Dev"
-min_ios_version  = "26.0"
 # Optional — override DerivedData location. Default is "{{xc_dev_dir}}/DerivedData".
 # derived_data   = "/Volumes/External/DerivedData/MyApp"
 
@@ -33,7 +32,6 @@ xcbeautify = "xcbeautify --quiet"
 | `[project].configuration` | string | yes | Default configuration, e.g. `Debug`. Used when a task has no `configuration` field. |
 | `[project].bundle_id` | string | yes | App bundle identifier for the default configuration. |
 | `[project].product_name` | string | yes | Used to derive `{{app_path}}` for the default configuration. |
-| `[project].min_ios_version` | string | yes | E.g. `26.0`. |
 | `[project].derived_data` | string | no | Default: `{{xc_dev_dir}}/DerivedData` (per-worktree isolation). |
 | `[vars].<key>` | string | no | User-defined variables. See [variables.md](variables.md). |
 
@@ -51,7 +49,6 @@ scheme         = "MyApp"
 configuration  = "Debug"
 bundle_id      = "com.example.myapp.debug"
 product_name   = "MyApp Dev"
-min_ios_version = "26.0"
 
 [project.configurations.Release]
 bundle_id    = "com.example.myapp"
@@ -62,9 +59,9 @@ bundle_id = "com.example.myapp.adhoc"
 # product_name omitted — falls back to [project].product_name
 ```
 
-All three override keys (`bundle_id`, `product_name`, `min_ios_version`) are optional
-within each `[project.configurations.<name>]` block. Omitted keys fall back to the
-corresponding `[project]` value.
+Both override keys (`bundle_id`, `product_name`) are optional within each
+`[project.configurations.<name>]` block. Omitted keys fall back to the corresponding
+`[project]` value.
 
 `xc-dev :proj init` detects these automatically by calling `xcodebuild -showBuildSettings`
 for each configuration and emitting override blocks only for values that differ from the
