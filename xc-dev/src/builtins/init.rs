@@ -143,11 +143,14 @@ schema_version = 1
 
 # Self-resolving simulator: xc-dev finds or creates the UDID automatically using
 # `xcrun simctl` based on name + device + runtime. The resolved UDID is cached
-# in .sim-cache.json (gitignored).
+# in simulator.local.toml (gitignored, per-machine).
 #
 # `name` is template-rendered; the default below gives each git worktree of the
 # same project its own sim (e.g. "Pulse-fix-inner-feed-caption-shrink") so
 # parallel worktrees don't fight over a single simulator.
+#
+# Opt-in: run `xc-dev :sim bake` to resolve the UDID once and write `id = "…"`
+# directly into this file (commits the UDID to source control).
 [sim.default]
 name    = "{{product_name}}-{{git_worktree_name}}"
 device  = "iPhone 16"
@@ -164,7 +167,7 @@ runtime = "iOS 26.2"
     write_file(&dotdir.join("simulator.toml"), simulator_toml)?;
 
     // Write .gitignore inside .xc-dev/ to exclude the UDID cache file.
-    let gitignore_content = ".sim-cache.json\n";
+    let gitignore_content = "simulator.local.toml\n";
     write_file(&dotdir.join(".gitignore"), gitignore_content)?;
 
     let tasks_toml = r#"# .xc-dev/tasks.toml
@@ -191,7 +194,7 @@ desc = "Delete the worktree-tagged simulator and clear the cache"
 cmd  = """
 NAME="{{sim_name}}"
 xcrun simctl delete "$NAME" 2>/dev/null && echo "Deleted $NAME" || echo "Not present: $NAME"
-rm -f {{xc_dev_dir}}/.sim-cache.json
+rm -f {{xc_dev_dir}}/simulator.local.toml
 """
 
 # Example tasks — uncomment to enable:
