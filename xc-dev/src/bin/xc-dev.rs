@@ -1,10 +1,13 @@
-use xc_dev::{cli, builtins, runner};
+use xc_dev::{builtins, cli, runner};
 
 fn main() {
     let argv: Vec<String> = std::env::args().collect();
     let inv = match cli::parse(&argv) {
         Ok(i) => i,
-        Err(e) => { eprintln!("xc-dev: {e}"); std::process::exit(2); }
+        Err(e) => {
+            eprintln!("xc-dev: {e}");
+            std::process::exit(2);
+        }
     };
     let exit_code = run(inv);
     std::process::exit(exit_code);
@@ -16,12 +19,19 @@ fn run(inv: cli::Invocation) -> i32 {
         cli::Command::List => builtins::list::run(&cwd),
         cli::Command::Get { key } => builtins::get::run(&cwd, &key),
         cli::Command::Doctor => builtins::doctor::run(&cwd),
-        cli::Command::ProjInit { force, yes, path, scheme } =>
-            builtins::init::run(&cwd, force, yes, path.as_deref(), scheme.as_deref()),
+        cli::Command::ProjInit {
+            force,
+            yes,
+            path,
+            scheme,
+        } => builtins::init::run(&cwd, force, yes, path.as_deref(), scheme.as_deref()),
         cli::Command::Task { name, args } => runner::run(&cwd, &name, &args, inv.verbose),
     };
     match result {
         Ok(code) => code,
-        Err(e) => { eprintln!("xc-dev: {e}"); 1 }
+        Err(e) => {
+            eprintln!("xc-dev: {e}");
+            1
+        }
     }
 }

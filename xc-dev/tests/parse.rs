@@ -123,8 +123,10 @@ cmd = "echo"
 "#;
     let err = tasks::parse(toml).unwrap_err();
     let s = err.to_string();
-    assert!(s.contains("required arg") && s.contains("after optional"),
-            "unexpected error message: {s}");
+    assert!(
+        s.contains("required arg") && s.contains("after optional"),
+        "unexpected error message: {s}"
+    );
 }
 
 #[test]
@@ -172,7 +174,10 @@ git_branch = "naughty"
     let p = xc_dev::config::project::parse(toml).unwrap();
     let err = xc_dev::vars::validate_project(&p).unwrap_err();
     let s = err.to_string();
-    assert!(s.contains("reserved name `git_branch`"), "unexpected error: {s}");
+    assert!(
+        s.contains("reserved name `git_branch`"),
+        "unexpected error: {s}"
+    );
 }
 
 #[test]
@@ -193,7 +198,10 @@ scheme = "override"
     let p = xc_dev::config::project::parse(toml).unwrap();
     let err = xc_dev::vars::validate_project(&p).unwrap_err();
     let s = err.to_string();
-    assert!(s.contains("reserved name `scheme`"), "unexpected error: {s}");
+    assert!(
+        s.contains("reserved name `scheme`"),
+        "unexpected error: {s}"
+    );
 }
 
 #[test]
@@ -206,7 +214,10 @@ cmd = "echo {{scheme}}"
     let t = xc_dev::config::tasks::parse(toml).unwrap();
     let err = xc_dev::vars::validate_tasks(&t).unwrap_err();
     let s = err.to_string();
-    assert!(s.contains("reserved name `scheme`"), "unexpected error: {s}");
+    assert!(
+        s.contains("reserved name `scheme`"),
+        "unexpected error: {s}"
+    );
 }
 
 #[test]
@@ -219,7 +230,10 @@ cmd = "echo {{git_branch}}"
     let t = xc_dev::config::tasks::parse(toml).unwrap();
     let err = xc_dev::vars::validate_tasks(&t).unwrap_err();
     let s = err.to_string();
-    assert!(s.contains("reserved name `git_branch`"), "unexpected error: {s}");
+    assert!(
+        s.contains("reserved name `git_branch`"),
+        "unexpected error: {s}"
+    );
 }
 
 #[test]

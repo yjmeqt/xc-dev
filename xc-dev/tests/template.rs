@@ -1,9 +1,9 @@
-use xc_dev::template;
-use xc_dev::config::project::{ProjectFile, Project};
-use xc_dev::config::simulator::{SimulatorFile, Sim};
-use xc_dev::vars::Vars;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
+use xc_dev::config::project::{Project, ProjectFile};
+use xc_dev::config::simulator::{Sim, SimulatorFile};
+use xc_dev::template;
+use xc_dev::vars::Vars;
 
 fn pf() -> ProjectFile {
     ProjectFile {
@@ -25,8 +25,22 @@ fn sf() -> SimulatorFile {
     SimulatorFile {
         schema_version: 1,
         sim: BTreeMap::from([
-            ("default".into(), Sim { id: "ABC".into(), name: "iPhone".into(), runtime: "iOS 26".into() }),
-            ("ipad".into(),    Sim { id: "DEF".into(), name: "iPad".into(),   runtime: "iOS 26".into() }),
+            (
+                "default".into(),
+                Sim {
+                    id: "ABC".into(),
+                    name: "iPhone".into(),
+                    runtime: "iOS 26".into(),
+                },
+            ),
+            (
+                "ipad".into(),
+                Sim {
+                    id: "DEF".into(),
+                    name: "iPad".into(),
+                    runtime: "iOS 26".into(),
+                },
+            ),
         ]),
     }
 }
@@ -71,7 +85,10 @@ fn auto_vars_paths_and_derived_data() {
     let v = Vars::build(PathBuf::from("/tmp/p"), pf(), sf(), BTreeMap::new(), "t").unwrap();
     assert_eq!(v.resolve("project_root"), Some("/tmp/p".into()));
     assert_eq!(v.resolve("xc_dev_dir"), Some("/tmp/p/.xc-dev".into()));
-    assert_eq!(v.resolve("derived_data"), Some("/tmp/p/.xc-dev/DerivedData".into()));
+    assert_eq!(
+        v.resolve("derived_data"),
+        Some("/tmp/p/.xc-dev/DerivedData".into())
+    );
     assert_eq!(
         v.resolve("build_products_dir"),
         Some("/tmp/p/.xc-dev/DerivedData/Build/Products/Debug-iphonesimulator".into())
@@ -95,12 +112,18 @@ fn auto_var_custom_derived_data() {
     p.project.derived_data = Some("/custom/dd".into());
     let v = Vars::build(PathBuf::from("/tmp/p"), p, sf(), BTreeMap::new(), "t").unwrap();
     assert_eq!(v.resolve("derived_data"), Some("/custom/dd".into()));
-    assert_eq!(v.resolve("build_products_dir"),
-               Some("/custom/dd/Build/Products/Debug-iphonesimulator".into()));
+    assert_eq!(
+        v.resolve("build_products_dir"),
+        Some("/custom/dd/Build/Products/Debug-iphonesimulator".into())
+    );
 }
 
 fn make_resolver<'a>(map: &'a [(&'a str, &'a str)]) -> impl Fn(&str) -> Option<String> + 'a {
-    move |k| map.iter().find(|(n, _)| *n == k).map(|(_, v)| v.to_string())
+    move |k| {
+        map.iter()
+            .find(|(n, _)| *n == k)
+            .map(|(_, v)| v.to_string())
+    }
 }
 
 #[test]
@@ -123,7 +146,8 @@ fn unknown_var_is_error() {
     let err = template::render("{{foo}}", "x", &r).unwrap_err();
     match err {
         xc_dev::error::XcDevError::UnknownVar { name, task } => {
-            assert_eq!(name, "foo"); assert_eq!(task, "x");
+            assert_eq!(name, "foo");
+            assert_eq!(task, "x");
         }
         e => panic!("wrong error: {e}"),
     }
@@ -154,18 +178,33 @@ fn trims_whitespace_inside_braces() {
 fn git_branch_in_real_repo() {
     // Use the actual repo we're testing in (the worktree).
     let cwd = std::env::current_dir().unwrap();
-    let out = std::process::Command::new("git").args(["rev-parse", "--show-toplevel"])
-        .current_dir(&cwd).output().unwrap();
-    if !out.status.success() { return; } // not in a git repo; skip
-    let project_root = std::path::PathBuf::from(
-        String::from_utf8(out.stdout).unwrap().trim()
-    );
+    let out = std::process::Command::new("git")
+        .args(["rev-parse", "--show-toplevel"])
+        .current_dir(&cwd)
+        .output()
+        .unwrap();
+    if !out.status.success() {
+        return;
+    } // not in a git repo; skip
+    let project_root = std::path::PathBuf::from(String::from_utf8(out.stdout).unwrap().trim());
     let v = Vars::build(project_root.clone(), pf(), sf(), BTreeMap::new(), "t").unwrap();
-    let b = v.try_resolve("git_branch").unwrap().expect("git_branch should resolve");
+    let b = v
+        .try_resolve("git_branch")
+        .unwrap()
+        .expect("git_branch should resolve");
     assert!(!b.is_empty(), "git_branch was empty");
-    let sha = v.try_resolve("git_sha").unwrap().expect("git_sha should resolve");
-    assert!(sha.len() >= 7 && sha.len() <= 40, "git_sha length suspicious: {sha:?}");
-    let main = v.try_resolve("git_main_root").unwrap().expect("git_main_root should resolve");
+    let sha = v
+        .try_resolve("git_sha")
+        .unwrap()
+        .expect("git_sha should resolve");
+    assert!(
+        sha.len() >= 7 && sha.len() <= 40,
+        "git_sha length suspicious: {sha:?}"
+    );
+    let main = v
+        .try_resolve("git_main_root")
+        .unwrap()
+        .expect("git_main_root should resolve");
     assert!(!main.is_empty());
 }
 

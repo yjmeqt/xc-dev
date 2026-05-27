@@ -7,7 +7,57 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  xc-dev:
+    name: xc-dev (macOS, Xcode)
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: xc-dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain versions
+        run: |
+          rustc --version
+          cargo --version
+          xcodebuild -version
+          swift --version
+
+      - name: Cache cargo registry + build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            xc-dev/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('xc-dev/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Build
+        run: cargo build --all-targets --locked
+
+      - name: Clippy (warnings as errors)
+        run: cargo clippy --all-targets --locked -- -D warnings
+
+      - name: Format check
+        run: cargo fmt --all -- --check
+
+      - name: Test
+        run: cargo test --locked
+
+      - name: Smoke — :proj init autodetect on the HelloDemo fixture
+        working-directory: examples/HelloDemo
+        run: |
+          ../../xc-dev/target/debug/xc-dev :proj init --yes
+          cat .xc-dev/project.toml
+          grep -q 'scheme           = "HelloDemo"'           .xc-dev/project.toml
+          grep -q 'bundle_id        = "com.example.HelloDemo"' .xc-dev/project.toml
+          grep -q 'product_name     = "HelloDemo"'             .xc-dev/project.toml
+          grep -q 'path             = "HelloDemo.xcworkspace"' .xc-dev/project.toml
+
+  worktree-ios-dev-tool:
+    name: worktree_ios_dev_tool (legacy Python)
     runs-on: ubuntu-latest
     defaults:
       run:

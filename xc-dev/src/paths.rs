@@ -1,9 +1,11 @@
-use std::path::{Path, PathBuf};
 use crate::error::{Result, XcDevError};
+use std::path::{Path, PathBuf};
 
 pub fn find_project_root(start: &Path) -> Result<PathBuf> {
-    let start_abs = start.canonicalize()
-        .map_err(|source| XcDevError::Io { path: start.to_path_buf(), source })?;
+    let start_abs = start.canonicalize().map_err(|source| XcDevError::Io {
+        path: start.to_path_buf(),
+        source,
+    })?;
     let mut cur = start_abs.as_path();
     loop {
         if cur.join(".xc-dev").is_dir() {

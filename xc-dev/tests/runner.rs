@@ -1,11 +1,14 @@
 use xc_dev::config::tasks;
 use xc_dev::runner;
 
-fn parse(toml: &str) -> tasks::Tasks { tasks::parse(toml).unwrap() }
+fn parse(toml: &str) -> tasks::Tasks {
+    tasks::parse(toml).unwrap()
+}
 
 #[test]
 fn linear_depends() {
-    let t = parse(r#"
+    let t = parse(
+        r#"
 [tasks.a]
 cmd = "echo a"
 
@@ -16,14 +19,19 @@ cmd = "echo b"
 [tasks.c]
 depends = ["b"]
 cmd = "echo c"
-"#);
+"#,
+    );
     let order = runner::resolve_chain("c", &t).unwrap();
-    assert_eq!(order, vec!["a".to_string(), "b".to_string(), "c".to_string()]);
+    assert_eq!(
+        order,
+        vec!["a".to_string(), "b".to_string(), "c".to_string()]
+    );
 }
 
 #[test]
 fn cycle_detected() {
-    let t = parse(r#"
+    let t = parse(
+        r#"
 [tasks.a]
 depends = ["b"]
 cmd = "echo a"
@@ -31,37 +39,49 @@ cmd = "echo a"
 [tasks.b]
 depends = ["a"]
 cmd = "echo b"
-"#);
+"#,
+    );
     let err = runner::resolve_chain("a", &t).unwrap_err();
-    assert!(err.to_string().to_lowercase().contains("cyclic"),
-            "expected cyclic error, got: {err}");
+    assert!(
+        err.to_string().to_lowercase().contains("cyclic"),
+        "expected cyclic error, got: {err}"
+    );
 }
 
 #[test]
 fn unknown_task_in_depends() {
-    let t = parse(r#"
+    let t = parse(
+        r#"
 [tasks.a]
 depends = ["nope"]
 cmd = "echo a"
-"#);
+"#,
+    );
     let err = runner::resolve_chain("a", &t).unwrap_err();
-    assert!(err.to_string().contains("nope"),
-            "expected error mentioning `nope`, got: {err}");
+    assert!(
+        err.to_string().contains("nope"),
+        "expected error mentioning `nope`, got: {err}"
+    );
 }
 
 #[test]
 fn unknown_root_task() {
-    let t = parse(r#"[tasks.a]
+    let t = parse(
+        r#"[tasks.a]
 cmd = "echo a"
-"#);
+"#,
+    );
     let err = runner::resolve_chain("zzz", &t).unwrap_err();
-    assert!(matches!(err, xc_dev::error::XcDevError::UnknownTask(ref n) if n == "zzz"),
-            "expected UnknownTask(\"zzz\"), got: {err:?}");
+    assert!(
+        matches!(err, xc_dev::error::XcDevError::UnknownTask(ref n) if n == "zzz"),
+        "expected UnknownTask(\"zzz\"), got: {err:?}"
+    );
 }
 
 #[test]
 fn diamond_dependency_runs_once() {
-    let t = parse(r#"
+    let t = parse(
+        r#"
 [tasks.a]
 cmd = "echo a"
 
@@ -76,16 +96,27 @@ cmd = "echo c"
 [tasks.d]
 depends = ["b", "c"]
 cmd = "echo d"
-"#);
+"#,
+    );
     let order = runner::resolve_chain("d", &t).unwrap();
-    assert_eq!(order, vec!["a".to_string(), "b".to_string(), "c".to_string(), "d".to_string()]);
+    assert_eq!(
+        order,
+        vec![
+            "a".to_string(),
+            "b".to_string(),
+            "c".to_string(),
+            "d".to_string()
+        ]
+    );
 }
 
 #[test]
 fn single_task_no_depends() {
-    let t = parse(r#"[tasks.solo]
+    let t = parse(
+        r#"[tasks.solo]
 cmd = "echo solo"
-"#);
+"#,
+    );
     let order = runner::resolve_chain("solo", &t).unwrap();
     assert_eq!(order, vec!["solo".to_string()]);
 }
@@ -107,7 +138,8 @@ fn exec_propagates_nonzero_exit() {
 #[test]
 fn exec_shell_state_persists_across_lines() {
     // Without single-shell semantics, line 2 wouldn't see VAR set in line 1.
-    let code = xc_dev::exec::run_script("VAR=hi\ntest \"$VAR\" = hi", None, &BTreeMap::new()).unwrap();
+    let code =
+        xc_dev::exec::run_script("VAR=hi\ntest \"$VAR\" = hi", None, &BTreeMap::new()).unwrap();
     assert_eq!(code, 0);
 }
 
@@ -137,11 +169,17 @@ fn exec_set_e_not_injected() {
 use xc_dev::config::tasks::Task;
 
 fn task_with_args(args: &[&str]) -> Task {
-    let toml_args = args.iter().map(|s| format!("\"{s}\"")).collect::<Vec<_>>().join(", ");
-    let s = format!(
-        "[tasks.x]\nargs = [{toml_args}]\ncmd = \"echo\"\n"
-    );
-    xc_dev::config::tasks::parse(&s).unwrap().tasks.remove("x").unwrap()
+    let toml_args = args
+        .iter()
+        .map(|s| format!("\"{s}\""))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let s = format!("[tasks.x]\nargs = [{toml_args}]\ncmd = \"echo\"\n");
+    xc_dev::config::tasks::parse(&s)
+        .unwrap()
+        .tasks
+        .remove("x")
+        .unwrap()
 }
 
 #[test]
@@ -202,7 +240,9 @@ fn no_args_no_user_args() {
 fn write_minimal_project(dir: &std::path::Path, tasks_toml: &str) {
     let dotdir = dir.join(".xc-dev");
     std::fs::create_dir_all(&dotdir).unwrap();
-    std::fs::write(dotdir.join("project.toml"), r#"
+    std::fs::write(
+        dotdir.join("project.toml"),
+        r#"
 schema_version = 1
 [project]
 path = "X.xcworkspace"
@@ -211,7 +251,9 @@ configuration = "Debug"
 bundle_id = "com.x"
 product_name = "X"
 min_ios_version = "26.0"
-"#).unwrap();
+"#,
+    )
+    .unwrap();
     std::fs::write(dotdir.join("simulator.toml"), "schema_version = 1\n").unwrap();
     std::fs::write(dotdir.join("tasks.toml"), tasks_toml).unwrap();
 }
@@ -219,11 +261,14 @@ min_ios_version = "26.0"
 #[test]
 fn runs_chain_with_template_substitution() {
     let tmp = tempfile::tempdir().unwrap();
-    write_minimal_project(tmp.path(), r#"
+    write_minimal_project(
+        tmp.path(),
+        r#"
 [tasks.greet]
 args = ["who=world"]
 cmd = "echo {{scheme}} says hello {{who}}"
-"#);
+"#,
+    );
     let code = xc_dev::runner::run(tmp.path(), "greet", &[], false).unwrap();
     assert_eq!(code, 0);
 }
@@ -231,14 +276,17 @@ cmd = "echo {{scheme}} says hello {{who}}"
 #[test]
 fn chain_stops_on_failure() {
     let tmp = tempfile::tempdir().unwrap();
-    write_minimal_project(tmp.path(), r#"
+    write_minimal_project(
+        tmp.path(),
+        r#"
 [tasks.fail]
 cmd = "exit 3"
 
 [tasks.after]
 depends = ["fail"]
 cmd = "echo should-not-run"
-"#);
+"#,
+    );
     let code = xc_dev::runner::run(tmp.path(), "after", &[], false).unwrap();
     assert_eq!(code, 3);
 }
@@ -246,9 +294,12 @@ cmd = "echo should-not-run"
 #[test]
 fn unknown_task_reports_error() {
     let tmp = tempfile::tempdir().unwrap();
-    write_minimal_project(tmp.path(), r#"[tasks.a]
+    write_minimal_project(
+        tmp.path(),
+        r#"[tasks.a]
 cmd = "echo a"
-"#);
+"#,
+    );
     let err = xc_dev::runner::run(tmp.path(), "nope", &[], false).unwrap_err();
     assert!(matches!(err, xc_dev::error::XcDevError::UnknownTask(_)));
 }
@@ -256,7 +307,9 @@ cmd = "echo a"
 #[test]
 fn root_args_passed_dep_uses_defaults() {
     let tmp = tempfile::tempdir().unwrap();
-    write_minimal_project(tmp.path(), r#"
+    write_minimal_project(
+        tmp.path(),
+        r#"
 [tasks.dep]
 args = ["mode=quiet"]
 cmd = "test \"{{mode}}\" = quiet"
@@ -265,7 +318,8 @@ cmd = "test \"{{mode}}\" = quiet"
 args = ["x=ok"]
 depends = ["dep"]
 cmd = "test \"{{x}}\" = override"
-"#);
+"#,
+    );
     let code = xc_dev::runner::run(tmp.path(), "main", &["override".into()], false).unwrap();
     assert_eq!(code, 0);
 }
@@ -280,9 +334,12 @@ fn missing_xc_dev_dir_errors() {
 #[test]
 fn unknown_var_in_cmd_errors_at_runtime() {
     let tmp = tempfile::tempdir().unwrap();
-    write_minimal_project(tmp.path(), r#"[tasks.bad]
+    write_minimal_project(
+        tmp.path(),
+        r#"[tasks.bad]
 cmd = "echo {{nope}}"
-"#);
+"#,
+    );
     let err = xc_dev::runner::run(tmp.path(), "bad", &[], false).unwrap_err();
     assert!(matches!(err, xc_dev::error::XcDevError::UnknownVar { .. }));
 }
@@ -293,7 +350,9 @@ fn verbose_echoes_command_to_stderr() {
     let tmp = tempfile::tempdir().unwrap();
     let dotdir = tmp.path().join(".xc-dev");
     std::fs::create_dir_all(&dotdir).unwrap();
-    std::fs::write(dotdir.join("project.toml"), r#"
+    std::fs::write(
+        dotdir.join("project.toml"),
+        r#"
 schema_version = 1
 [project]
 path = "X.xcworkspace"
@@ -302,22 +361,34 @@ configuration = "Debug"
 bundle_id = "com.x"
 product_name = "X"
 min_ios_version = "26.0"
-"#).unwrap();
+"#,
+    )
+    .unwrap();
     std::fs::write(dotdir.join("simulator.toml"), "schema_version = 1\n").unwrap();
-    std::fs::write(dotdir.join("tasks.toml"), r#"
+    std::fs::write(
+        dotdir.join("tasks.toml"),
+        r#"
 [tasks.greet]
 cmd = "echo hello from {{scheme}}"
-"#).unwrap();
+"#,
+    )
+    .unwrap();
 
-    let assert = Command::cargo_bin("xc-dev").unwrap()
+    let assert = Command::cargo_bin("xc-dev")
+        .unwrap()
         .current_dir(tmp.path())
         .args(["-v", "greet"])
         .assert()
         .success();
     let stderr = String::from_utf8(assert.get_output().stderr.clone()).unwrap();
-    assert!(stderr.contains("+ greet"), "expected `+ greet` line in stderr:\n{stderr}");
-    assert!(stderr.contains("+ echo hello from Hello"),
-            "expected the expanded cmd echoed to stderr:\n{stderr}");
+    assert!(
+        stderr.contains("+ greet"),
+        "expected `+ greet` line in stderr:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("+ echo hello from Hello"),
+        "expected the expanded cmd echoed to stderr:\n{stderr}"
+    );
 }
 
 #[test]
@@ -325,7 +396,9 @@ fn git_var_outside_repo_reports_var_unavailable() {
     let tmp = tempfile::tempdir().unwrap();
     let dotdir = tmp.path().join(".xc-dev");
     std::fs::create_dir_all(&dotdir).unwrap();
-    std::fs::write(dotdir.join("project.toml"), r#"
+    std::fs::write(
+        dotdir.join("project.toml"),
+        r#"
 schema_version = 1
 [project]
 path = "X.xcworkspace"
@@ -334,12 +407,18 @@ configuration = "Debug"
 bundle_id = "com.x"
 product_name = "X"
 min_ios_version = "26.0"
-"#).unwrap();
+"#,
+    )
+    .unwrap();
     std::fs::write(dotdir.join("simulator.toml"), "schema_version = 1\n").unwrap();
-    std::fs::write(dotdir.join("tasks.toml"), r#"
+    std::fs::write(
+        dotdir.join("tasks.toml"),
+        r#"
 [tasks.show-branch]
 cmd = "echo {{git_branch}}"
-"#).unwrap();
+"#,
+    )
+    .unwrap();
     let err = xc_dev::runner::run(tmp.path(), "show-branch", &[], false).unwrap_err();
     match err {
         xc_dev::error::XcDevError::VarUnavailable { name, .. } => {
@@ -355,7 +434,9 @@ fn no_verbose_does_not_echo() {
     let tmp = tempfile::tempdir().unwrap();
     let dotdir = tmp.path().join(".xc-dev");
     std::fs::create_dir_all(&dotdir).unwrap();
-    std::fs::write(dotdir.join("project.toml"), r#"
+    std::fs::write(
+        dotdir.join("project.toml"),
+        r#"
 schema_version = 1
 [project]
 path = "X.xcworkspace"
@@ -364,18 +445,28 @@ configuration = "Debug"
 bundle_id = "com.x"
 product_name = "X"
 min_ios_version = "26.0"
-"#).unwrap();
+"#,
+    )
+    .unwrap();
     std::fs::write(dotdir.join("simulator.toml"), "schema_version = 1\n").unwrap();
-    std::fs::write(dotdir.join("tasks.toml"), r#"
+    std::fs::write(
+        dotdir.join("tasks.toml"),
+        r#"
 [tasks.silent]
 cmd = "true"
-"#).unwrap();
+"#,
+    )
+    .unwrap();
 
-    let assert = Command::cargo_bin("xc-dev").unwrap()
+    let assert = Command::cargo_bin("xc-dev")
+        .unwrap()
         .current_dir(tmp.path())
         .args(["silent"])
         .assert()
         .success();
     let stderr = String::from_utf8(assert.get_output().stderr.clone()).unwrap();
-    assert!(!stderr.contains("+ "), "expected no `+ ` prefix on stderr without -v:\n{stderr}");
+    assert!(
+        !stderr.contains("+ "),
+        "expected no `+ ` prefix on stderr without -v:\n{stderr}"
+    );
 }

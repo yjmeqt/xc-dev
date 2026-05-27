@@ -1,10 +1,10 @@
+use crate::config::tasks::{Task, Tasks};
+use crate::error::{Result, XcDevError};
+use crate::vars::{self, Vars};
+use crate::{config, exec, paths, template};
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::path::Path;
-use crate::config::tasks::{Task, Tasks};
-use crate::error::{Result, XcDevError};
-use crate::{config, paths, template, exec};
-use crate::vars::{self, Vars};
 
 /// Topologically order all tasks that need to run to execute `root`.
 /// Returns dependencies first; `root` last. Each task appears exactly once.
@@ -39,10 +39,11 @@ pub fn bind_args(task: &Task, user_args: &[String]) -> Result<BTreeMap<String, S
     }
     let mut map = BTreeMap::new();
     for (i, spec) in task.args.iter().enumerate() {
-        let value = user_args.get(i).cloned()
-            .unwrap_or_else(|| spec.default.clone().expect(
-                "default exists by invariant: required args precede optional"
-            ));
+        let value = user_args.get(i).cloned().unwrap_or_else(|| {
+            spec.default
+                .clone()
+                .expect("default exists by invariant: required args precede optional")
+        });
         map.insert(spec.name.clone(), value);
     }
     Ok(map)
@@ -65,7 +66,10 @@ pub fn run(start_dir: &Path, task_name: &str, user_args: &[String], verbose: boo
 
     let mut last_code = 0;
     for name in &order {
-        let task = tasks.tasks.get(name).expect("resolve_chain only returns known tasks");
+        let task = tasks
+            .tasks
+            .get(name)
+            .expect("resolve_chain only returns known tasks");
         let args_for_task = if name == task_name {
             bind_args(task, user_args)?
         } else {
@@ -73,16 +77,16 @@ pub fn run(start_dir: &Path, task_name: &str, user_args: &[String], verbose: boo
         };
         let v = Vars::build(root.clone(), pf.clone(), sf.clone(), args_for_task, name)?;
         let pending_err: RefCell<Option<XcDevError>> = RefCell::new(None);
-        let rendered = template::render(&task.cmd, name, &|n| {
-            match v.try_resolve(n) {
-                Ok(some) => some,
-                Err(e) => {
-                    *pending_err.borrow_mut() = Some(e);
-                    None
-                }
+        let rendered = template::render(&task.cmd, name, &|n| match v.try_resolve(n) {
+            Ok(some) => some,
+            Err(e) => {
+                *pending_err.borrow_mut() = Some(e);
+                None
             }
         });
-        if let Some(e) = pending_err.into_inner() { return Err(e); }
+        if let Some(e) = pending_err.into_inner() {
+            return Err(e);
+        }
         let rendered = rendered?;
         if verbose {
             eprintln!("+ {name}");
@@ -93,7 +97,9 @@ pub fn run(start_dir: &Path, task_name: &str, user_args: &[String], verbose: boo
         let cwd = task.cwd.as_ref().map(|c| root.join(c));
         let code = exec::run_script(&rendered, cwd.as_deref(), &task.env)?;
         last_code = code;
-        if code != 0 { break; }
+        if code != 0 {
+            break;
+        }
     }
     Ok(last_code)
 }
@@ -105,15 +111,17 @@ fn visit(
     visited: &mut std::collections::HashSet<String>,
     order: &mut Vec<String>,
 ) -> Result<()> {
-    if visited.contains(name) { return Ok(()); }
+    if visited.contains(name) {
+        return Ok(());
+    }
     if visiting.iter().any(|n| n == name) {
         let mut chain = visiting.clone();
         chain.push(name.to_string());
         return Err(XcDevError::DependsCycle(chain.join(" -> ")));
     }
-    let task = tasks.tasks.get(name).ok_or_else(||
+    let task = tasks.tasks.get(name).ok_or_else(|| {
         XcDevError::Other(format!("unknown task `{name}` referenced from depends"))
-    )?;
+    })?;
     visiting.push(name.to_string());
     for dep in &task.depends {
         visit(dep, tasks, visiting, visited, order)?;

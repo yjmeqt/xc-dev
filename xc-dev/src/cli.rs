@@ -7,8 +7,13 @@ pub struct Invocation {
 #[derive(Debug)]
 pub enum Command {
     List,
-    Task { name: String, args: Vec<String> },
-    Get { key: String },
+    Task {
+        name: String,
+        args: Vec<String>,
+    },
+    Get {
+        key: String,
+    },
     Doctor,
     ProjInit {
         force: bool,
@@ -22,11 +27,19 @@ pub fn parse(argv: &[String]) -> Result<Invocation, String> {
     let mut args: Vec<String> = argv.iter().skip(1).cloned().collect();
     let mut verbose = false;
     args.retain(|a| {
-        if a == "-v" || a == "--verbose" { verbose = true; false } else { true }
+        if a == "-v" || a == "--verbose" {
+            verbose = true;
+            false
+        } else {
+            true
+        }
     });
 
     if args.is_empty() {
-        return Ok(Invocation { verbose, command: Command::List });
+        return Ok(Invocation {
+            verbose,
+            command: Command::List,
+        });
     }
 
     let first = args.remove(0);
@@ -38,8 +51,13 @@ pub fn parse(argv: &[String]) -> Result<Invocation, String> {
         }
         ":doctor" => Command::Doctor,
         ":proj" => {
-            let sub = args.first().cloned().ok_or("`:proj` requires a subcommand")?;
-            if sub != "init" { return Err(format!("unknown :proj subcommand `{sub}`")); }
+            let sub = args
+                .first()
+                .cloned()
+                .ok_or("`:proj` requires a subcommand")?;
+            if sub != "init" {
+                return Err(format!("unknown :proj subcommand `{sub}`"));
+            }
             let rest = &args[1..];
             let mut force = false;
             let mut yes = false;
@@ -48,27 +66,43 @@ pub fn parse(argv: &[String]) -> Result<Invocation, String> {
             let mut i = 0;
             while i < rest.len() {
                 match rest[i].as_str() {
-                    "--force" => { force = true; i += 1; }
-                    "--yes" => { yes = true; i += 1; }
+                    "--force" => {
+                        force = true;
+                        i += 1;
+                    }
+                    "--yes" => {
+                        yes = true;
+                        i += 1;
+                    }
                     "--path" => {
-                        path = Some(rest.get(i + 1).cloned()
-                            .ok_or("--path requires a value")?);
+                        path = Some(rest.get(i + 1).cloned().ok_or("--path requires a value")?);
                         i += 2;
                     }
                     "--scheme" => {
-                        scheme = Some(rest.get(i + 1).cloned()
-                            .ok_or("--scheme requires a value")?);
+                        scheme = Some(
+                            rest.get(i + 1)
+                                .cloned()
+                                .ok_or("--scheme requires a value")?,
+                        );
                         i += 2;
                     }
                     other => return Err(format!("unknown :proj init flag `{other}`")),
                 }
             }
-            Command::ProjInit { force, yes, path, scheme }
+            Command::ProjInit {
+                force,
+                yes,
+                path,
+                scheme,
+            }
         }
         other if other.starts_with(':') => {
             return Err(format!("unknown built-in `{other}`"));
         }
-        other => Command::Task { name: other.to_string(), args },
+        other => Command::Task {
+            name: other.to_string(),
+            args,
+        },
     };
 
     Ok(Invocation { verbose, command })
@@ -80,7 +114,8 @@ mod tests {
 
     fn p(args: &[&str]) -> Result<Invocation, String> {
         let v: Vec<String> = std::iter::once("xc-dev".to_string())
-            .chain(args.iter().map(|s| s.to_string())).collect();
+            .chain(args.iter().map(|s| s.to_string()))
+            .collect();
         parse(&v)
     }
 
@@ -129,10 +164,26 @@ mod tests {
 
     #[test]
     fn proj_init_parses_flags() {
-        let i = p(&[":proj", "init", "--path", "X.xcworkspace", "--scheme", "Hello", "--yes", "--force"]).unwrap();
+        let i = p(&[
+            ":proj",
+            "init",
+            "--path",
+            "X.xcworkspace",
+            "--scheme",
+            "Hello",
+            "--yes",
+            "--force",
+        ])
+        .unwrap();
         match i.command {
-            Command::ProjInit { force, yes, path, scheme } => {
-                assert!(force); assert!(yes);
+            Command::ProjInit {
+                force,
+                yes,
+                path,
+                scheme,
+            } => {
+                assert!(force);
+                assert!(yes);
                 assert_eq!(path.as_deref(), Some("X.xcworkspace"));
                 assert_eq!(scheme.as_deref(), Some("Hello"));
             }

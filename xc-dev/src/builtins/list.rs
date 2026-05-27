@@ -1,6 +1,6 @@
-use std::path::Path;
 use crate::error::Result;
-use crate::{paths, config};
+use crate::{config, paths};
+use std::path::Path;
 
 pub fn run(cwd: &Path) -> Result<i32> {
     let root = paths::find_project_root(cwd)?;
@@ -14,7 +14,7 @@ pub fn run(cwd: &Path) -> Result<i32> {
     for (name, task) in &tasks.tasks {
         match &task.desc {
             Some(d) => println!("  {:<width$}  {}", name, d, width = width),
-            None    => println!("  {}", name),
+            None => println!("  {}", name),
         }
     }
     Ok(0)

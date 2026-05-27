@@ -11,36 +11,40 @@ pub struct GitVars {
 
 impl GitVars {
     pub fn new(project_root: PathBuf) -> Self {
-        Self { root: project_root, cache: RefCell::new(HashMap::new()) }
+        Self {
+            root: project_root,
+            cache: RefCell::new(HashMap::new()),
+        }
     }
 
     fn run(&self, args: &[&str]) -> std::result::Result<String, String> {
-        let out = Command::new("git").args(args).current_dir(&self.root).output()
+        let out = Command::new("git")
+            .args(args)
+            .current_dir(&self.root)
+            .output()
             .map_err(|e| format!("git not on PATH: {e}"))?;
         if !out.status.success() {
             let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
             return Err(if stderr.is_empty() {
                 format!("git {} failed", args.join(" "))
-            } else { stderr });
+            } else {
+                stderr
+            });
         }
         Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
     }
 
     fn compute(&self, name: &str) -> Option<std::result::Result<String, String>> {
         match name {
-            "git_root" | "git_worktree_dir" =>
-                Some(self.run(&["rev-parse", "--show-toplevel"])),
-            "git_branch" =>
-                Some(self.run(&["rev-parse", "--abbrev-ref", "HEAD"])),
-            "git_sha" =>
-                Some(self.run(&["rev-parse", "--short", "HEAD"])),
-            "git_worktree_name" => Some(
-                self.run(&["rev-parse", "--show-toplevel"]).map(|p|
-                    std::path::Path::new(&p).file_name()
-                        .map(|s| s.to_string_lossy().into_owned())
-                        .unwrap_or_default()
-                )
-            ),
+            "git_root" | "git_worktree_dir" => Some(self.run(&["rev-parse", "--show-toplevel"])),
+            "git_branch" => Some(self.run(&["rev-parse", "--abbrev-ref", "HEAD"])),
+            "git_sha" => Some(self.run(&["rev-parse", "--short", "HEAD"])),
+            "git_worktree_name" => Some(self.run(&["rev-parse", "--show-toplevel"]).map(|p| {
+                std::path::Path::new(&p)
+                    .file_name()
+                    .map(|s| s.to_string_lossy().into_owned())
+                    .unwrap_or_default()
+            })),
             "git_main_root" => Some(self.git_main_root()),
             _ => None,
         }
@@ -62,7 +66,8 @@ impl GitVars {
             return match cached {
                 Ok(v) => Ok(Some(v.clone())),
                 Err(e) => Err(XcDevError::VarUnavailable {
-                    name: name.to_string(), reason: e.clone(),
+                    name: name.to_string(),
+                    reason: e.clone(),
                 }),
             };
         }
@@ -72,10 +77,15 @@ impl GitVars {
             None => return Ok(None), // not a supported git_* name
         };
         // 3) Cache and return
-        self.cache.borrow_mut().insert(name.to_string(), computed.clone());
+        self.cache
+            .borrow_mut()
+            .insert(name.to_string(), computed.clone());
         match computed {
             Ok(v) => Ok(Some(v)),
-            Err(e) => Err(XcDevError::VarUnavailable { name: name.to_string(), reason: e }),
+            Err(e) => Err(XcDevError::VarUnavailable {
+                name: name.to_string(),
+                reason: e,
+            }),
         }
     }
 }
