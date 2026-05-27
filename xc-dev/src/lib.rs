@@ -5,5 +5,6 @@ pub mod error;
 pub mod exec;
 pub mod paths;
 pub mod runner;
+pub mod sim_resolver;
 pub mod template;
 pub mod vars;
