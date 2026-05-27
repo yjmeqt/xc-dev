@@ -141,20 +141,23 @@ min_ios_version  = "{min_ios_version}"
     let simulator_toml = r#"# .xc-dev/simulator.toml
 schema_version = 1
 
-# Self-resolving simulator: xc-dev will find or create the UDID automatically
-# using `xcrun simctl` based on name + device + runtime. You don't need to
-# hard-code an `id`. The resolved UDID is cached in .sim-cache.json (gitignored).
+# Self-resolving simulator: xc-dev finds or creates the UDID automatically using
+# `xcrun simctl` based on name + device + runtime. The resolved UDID is cached
+# in .sim-cache.json (gitignored).
+#
+# `name` is template-rendered; the default below gives each git worktree of the
+# same project its own sim (e.g. "Pulse-fix-inner-feed-caption-shrink") so
+# parallel worktrees don't fight over a single simulator.
 [sim.default]
-name    = "xc-dev-default"
+name    = "{{product_name}}-{{git_worktree_name}}"
 device  = "iPhone 16"
 runtime = "iOS 26.2"
 
-# To pin an explicit UDID instead, add:
-#   id = "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
+# To pin an explicit UDID instead, add `id = "XXXXXXXX-…"` and remove `device`.
 #
 # To add another simulator (e.g. an iPad):
 # [sim.ipad]
-# name    = "xc-dev-ipad"
+# name    = "{{product_name}}-{{git_worktree_name}}-ipad"
 # device  = "iPad Pro 11-inch (M4)"
 # runtime = "iOS 26.2"
 "#;
@@ -175,11 +178,27 @@ xcodebuild -scheme {{scheme}} \
   build
 """
 
+[tasks.sim-bootstrap]
+desc = "Ensure the worktree-tagged simulator exists (lazy create on first reference)"
+cmd  = """
+echo "name:    {{sim_name}}"
+echo "udid:    {{sim_id}}"
+echo "runtime: {{sim_runtime}}"
+"""
+
+[tasks.sim-delete]
+desc = "Delete the worktree-tagged simulator and clear the cache"
+cmd  = """
+NAME="{{sim_name}}"
+xcrun simctl delete "$NAME" 2>/dev/null && echo "Deleted $NAME" || echo "Not present: $NAME"
+rm -f {{xc_dev_dir}}/.sim-cache.json
+"""
+
 # Example tasks — uncomment to enable:
 #
 # [tasks.run]
-# depends = ["build"]
-# desc = "Boot the default simulator, install, launch"
+# depends = ["build", "sim-bootstrap"]
+# desc = "Build, boot the default simulator, install, launch"
 # cmd  = """
 # xcrun simctl boot {{sim_id}} 2>/dev/null || true
 # xcrun simctl install {{sim_id}} {{app_path}}
