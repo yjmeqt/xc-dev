@@ -14,13 +14,24 @@ A `package.json`-style task runner for Xcode. You declare your own `build`, `run
 `test`, `test-package`, … tasks in `.xc-dev/tasks.toml`; xc-dev injects scheme, bundle
 id, simulator id, derived data path, git branch, etc. as `{{name}}` substitutions.
 
-Quick install:
+### Install the tool
 
 ```sh
-cargo install --git https://github.com/yjmeqt/xc-dev
+cargo install --git https://github.com/yjmeqt/worktree-ios-dev-tool xc-dev
 # or from a local clone:
 cd xc-dev && cargo install --path .
 ```
+
+### Install the skill
+
+From any worktree:
+
+```sh
+npx skills add yjmeqt/worktree-ios-dev-tool
+```
+
+This makes the `xc-dev` skill (`skills/xc-dev/SKILL.md`) available to Claude Code so it
+routes iOS / Xcode work through `xc-dev <task>` instead of raw `xcodebuild`.
 
 See [`xc-dev/README.md`](xc-dev/README.md) for the quickstart and docs.
 

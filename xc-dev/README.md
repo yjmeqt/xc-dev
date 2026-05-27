@@ -8,9 +8,11 @@ Think `package.json` scripts or a `Justfile`, but Xcode-aware out of the box.
 
 ## Install
 
+**The binary:**
+
 ```sh
 # From source (recommended during early development)
-cargo install --git https://github.com/yjmeqt/xc-dev
+cargo install --git https://github.com/yjmeqt/worktree-ios-dev-tool xc-dev
 
 # From a local clone
 cd xc-dev && cargo install --path .
@@ -20,6 +22,12 @@ brew install yjmeqt/tap/xc-dev
 ```
 
 Requires Rust 1.75+.
+
+**The Claude skill** (so Claude Code uses `xc-dev` instead of raw `xcodebuild`):
+
+```sh
+npx skills add yjmeqt/worktree-ios-dev-tool
+```
 
 ## 60-second quickstart
 
