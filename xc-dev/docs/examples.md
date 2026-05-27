@@ -201,6 +201,34 @@ SIM=$(xc-dev :get sim_id)
 echo "scheme=$SCHEME sim=$SIM"
 ```
 
+## Pinning UDIDs with `:sim bake` (no-commit workflow)
+
+If your team doesn't check in `simulator.toml` (e.g. it's gitignored), you can resolve UDIDs
+once and write them directly into the file so they're stable across sessions:
+
+```sh
+# Resolve all self-resolving entries in simulator.toml and write id = "..." in-place.
+xc-dev :sim bake
+
+# Bake only a specific label.
+xc-dev :sim bake ipad
+```
+
+After baking, `simulator.toml` will look like:
+
+```toml
+[sim.default]
+name    = "MyApp-my-branch"    # original comment preserved
+device  = "iPhone 16"
+runtime = "iOS 26.2"
+id      = "AAAA-BBBB-CCCC"    # written by :sim bake
+```
+
+Running `:sim bake` a second time is a no-op for entries that already have `id` set.
+
+For teams who *do* check in `simulator.toml` without `id`, xc-dev maintains a per-machine
+UDID cache at `.xc-dev/simulator.local.toml` (gitignored) automatically — no manual baking needed.
+
 ## Per-worktree caches via `{{git_worktree_name}}`
 
 ```toml
