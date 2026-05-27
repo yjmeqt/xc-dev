@@ -98,7 +98,7 @@ runtime = "iOS 26.2"
 `[sim.default]` is the implicit lookup for `{{sim_id}}` / `{{sim_name}}` / `{{sim_runtime}}`.
 Other labels are accessed via `{{sim.<label>.<field>}}`.
 
-xc-dev v0.1 does **not** include an interactive simulator picker — populate this file
+xc-dev does **not** include an interactive simulator picker (yet) — populate this file
 by hand (or via your own script). `xcrun simctl list devices --json` is a useful starting
 point.
 
