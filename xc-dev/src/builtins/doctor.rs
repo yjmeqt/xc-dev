@@ -77,6 +77,28 @@ pub fn run(cwd: &Path) -> Result<i32> {
         }
     }
 
+    // Warn if any task.configuration doesn't match a known configuration name.
+    {
+        let known_configs: std::collections::BTreeSet<&str> =
+            std::iter::once(pf.project.configuration.as_str())
+                .chain(pf.project.configurations.keys().map(String::as_str))
+                .collect();
+        for (name, task) in &tasks.tasks {
+            if let Some(cfg) = &task.configuration {
+                if !known_configs.contains(cfg.as_str()) {
+                    println!(
+                        "  WARN  task `{name}` configuration = \"{cfg}\" not in known configurations ({known})",
+                        known = known_configs
+                            .iter()
+                            .map(|s| format!("\"{s}\""))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    );
+                }
+            }
+        }
+    }
+
     let xcodebuild_ok = std::process::Command::new("xcodebuild")
         .arg("-version")
         .output()
@@ -124,7 +146,18 @@ pub fn run(cwd: &Path) -> Result<i32> {
                 )
             })
             .collect();
-        let vbuilt = Vars::build(root.clone(), pf.clone(), sf.clone(), args, name);
+        let effective_config = task
+            .configuration
+            .clone()
+            .unwrap_or_else(|| pf.project.configuration.clone());
+        let vbuilt = Vars::build(
+            root.clone(),
+            pf.clone(),
+            sf.clone(),
+            args,
+            name,
+            effective_config,
+        );
         match vbuilt {
             Err(e) => {
                 println!("  FAIL  task `{name}` vars: {e}");

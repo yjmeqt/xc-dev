@@ -15,7 +15,12 @@ pub struct AutoVars {
 }
 
 impl AutoVars {
-    pub fn build(project_root: PathBuf, pf: &ProjectFile) -> Self {
+    pub fn build(
+        project_root: PathBuf,
+        pf: &ProjectFile,
+        effective_config: &str,
+        effective_product_name: &str,
+    ) -> Self {
         let xc_dev_dir = project_root.join(".xc-dev");
         let derived_data = pf
             .project
@@ -25,8 +30,8 @@ impl AutoVars {
             .unwrap_or_else(|| xc_dev_dir.join("DerivedData"));
         let build_products_dir = derived_data
             .join("Build/Products")
-            .join(format!("{}-iphonesimulator", pf.project.configuration));
-        let app_path = build_products_dir.join(format!("{}.app", pf.project.product_name));
+            .join(format!("{}-iphonesimulator", effective_config));
+        let app_path = build_products_dir.join(format!("{}.app", effective_product_name));
         let now = Local::now();
         Self {
             project_root,

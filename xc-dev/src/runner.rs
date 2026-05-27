@@ -75,7 +75,18 @@ pub fn run(start_dir: &Path, task_name: &str, user_args: &[String], verbose: boo
         } else {
             bind_args(task, &[])?
         };
-        let v = Vars::build(root.clone(), pf.clone(), sf.clone(), args_for_task, name)?;
+        let effective_config = task
+            .configuration
+            .clone()
+            .unwrap_or_else(|| pf.project.configuration.clone());
+        let v = Vars::build(
+            root.clone(),
+            pf.clone(),
+            sf.clone(),
+            args_for_task,
+            name,
+            effective_config,
+        )?;
         let pending_err: RefCell<Option<XcDevError>> = RefCell::new(None);
         let rendered = template::render(&task.cmd, name, &|n| match v.try_resolve(n) {
             Ok(some) => some,
