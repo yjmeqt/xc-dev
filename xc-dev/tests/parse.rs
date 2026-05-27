@@ -79,7 +79,7 @@ runtime = "iOS 26.2"
 "#;
     let s = xc_dev::config::simulator::parse(toml).unwrap();
     assert_eq!(s.sim.len(), 2);
-    assert_eq!(s.sim["default"].id, "ABC-123");
+    assert_eq!(s.sim["default"].id.as_deref(), Some("ABC-123"));
     assert_eq!(s.sim["ipad"].name, "iPad Pro 11");
 }
 

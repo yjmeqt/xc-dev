@@ -29,17 +29,19 @@ fn sf() -> SimulatorFile {
             (
                 "default".into(),
                 Sim {
-                    id: "ABC".into(),
+                    id: Some("ABC".into()),
                     name: "iPhone".into(),
                     runtime: "iOS 26".into(),
+                    device: None,
                 },
             ),
             (
                 "ipad".into(),
                 Sim {
-                    id: "DEF".into(),
+                    id: Some("DEF".into()),
                     name: "iPad".into(),
                     runtime: "iOS 26".into(),
+                    device: None,
                 },
             ),
         ]),
