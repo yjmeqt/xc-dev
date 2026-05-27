@@ -1,6 +1,6 @@
 ---
 name: xc-dev
-description: Use for iOS / Xcode build, run, test, and simulator workflows in projects that have an `.xc-dev/` directory. Routes work through `xc-dev <task>` instead of raw `xcodebuild`. Replaces the legacy `worktree-ios-dev` skill (which still applies to projects using `worktree-ios-dev-tool`).
+description: Use for iOS / Xcode build, run, test, and simulator workflows in projects that have an `.xc-dev/` directory. Routes work through `xc-dev <task>` instead of raw `xcodebuild`.
 ---
 
 # xc-dev
@@ -20,10 +20,8 @@ Activate when **all** of these are true:
   `ls -d .xc-dev 2>/dev/null` or walk up; an existing `tasks.toml` is the dispositive
   signal).
 
-Do **not** use this skill — fall back to `worktree-ios-dev` or generic Xcode tooling — when:
+Do **not** use this skill — fall back to generic Xcode tooling — when:
 
-- The project still uses `worktree-ios-dev-tool` (look for `worktree-ios-dev/` or
-  `.tart/project.toml` — legacy paths) and not `.xc-dev/`.
 - The project has no `.xc-dev/` and the user isn't asking to set one up.
 
 ## Discovery first
@@ -120,8 +118,5 @@ If you need more detail than this skill provides, point the user at:
 
 ## Relationship to other skills
 
-- **`worktree-ios-dev`** — the legacy Python tool's skill. Still relevant for projects
-  that haven't migrated. The two are not interchangeable; the path-and-config layouts
-  differ.
 - **`xcodebuildmcp-cli`** — reserved for UI automation, log streaming, and interactive
   debugging that xc-dev doesn't cover.

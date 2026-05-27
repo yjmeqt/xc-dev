@@ -55,19 +55,3 @@ jobs:
           grep -q 'bundle_id        = "com.example.HelloDemo"' .xc-dev/project.toml
           grep -q 'product_name     = "HelloDemo"'             .xc-dev/project.toml
           grep -q 'path             = "HelloDemo.xcworkspace"' .xc-dev/project.toml
-
-  worktree-ios-dev-tool:
-    name: worktree_ios_dev_tool (legacy Python)
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: worktree_ios_dev_tool
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Install dependencies
-        run: pip install tomlkit rich InquirerPy
-      - name: Run tests
-        run: python -m unittest discover -s tests -v
