@@ -261,7 +261,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.HelloDemo;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.HelloDemo.release;
 				PRODUCT_NAME = HelloDemo;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;
