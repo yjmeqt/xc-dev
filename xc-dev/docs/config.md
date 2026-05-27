@@ -72,35 +72,65 @@ default configuration.
 
 ## `simulator.toml`
 
+xc-dev supports two modes for simulator entries: **self-resolving** (recommended) and
+**pinned UDID** (for full control).
+
+### Self-resolving (recommended)
+
 ```toml
 schema_version = 1
 
 [sim.default]
-id      = "ABC-123-…"
-name    = "iPhone 17 Pro"
+name    = "xc-dev-default"
+device  = "iPhone 16"
 runtime = "iOS 26.2"
 
 [sim.ipad]
-id      = "DEF-456-…"
-name    = "iPad Pro 11"
+name    = "xc-dev-ipad"
+device  = "iPad Pro 11-inch (M4)"
 runtime = "iOS 26.2"
 ```
+
+When `{{sim_id}}` is first used, xc-dev:
+1. Looks for an existing simulator matching `name` + `runtime` via `xcrun simctl list devices`.
+2. If none is found, creates one via `xcrun simctl create <name> <device-type-id> <runtime-id>`.
+3. Caches the resolved UDID in `.xc-dev/.sim-cache.json` (gitignored, per-machine).
+
+On subsequent calls the cached UDID is validated against `xcrun simctl list devices` and
+reused. Stale entries (e.g. after the simulator was deleted) are dropped and re-resolved.
+
+`name` may contain template variables (e.g. `"{{git_worktree_name}}-sim"`); variables
+starting with `sim` are excluded to prevent recursion.
+
+### Pinned UDID
+
+```toml
+schema_version = 1
+
+[sim.default]
+id      = "ABC-123-XXXX-…"
+name    = "iPhone 17 Pro"
+runtime = "iOS 26.2"
+```
+
+When `id` is present it is used directly — no simctl calls are made.
 
 ### Fields
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `schema_version` | u32 | yes | Currently `1`. |
-| `[sim.<label>].id` | string | yes | UDID from `xcrun simctl list devices`. |
-| `[sim.<label>].name` | string | yes | Display name. |
+| `[sim.<label>].name` | string | yes | Display name (also used as the simctl device name for self-resolving entries). |
 | `[sim.<label>].runtime` | string | yes | E.g. `iOS 26.2`. |
+| `[sim.<label>].id` | string | no | Explicit UDID. When present, `device` is ignored and no simctl calls are made. |
+| `[sim.<label>].device` | string | no | Device type for auto-resolution, e.g. `"iPhone 16"`. Required when `id` is absent and `{{sim_id}}` is used. |
 
 `[sim.default]` is the implicit lookup for `{{sim_id}}` / `{{sim_name}}` / `{{sim_runtime}}`.
 Other labels are accessed via `{{sim.<label>.<field>}}`.
 
-xc-dev does **not** include an interactive simulator picker (yet) — populate this file
-by hand (or via your own script). `xcrun simctl list devices --json` is a useful starting
-point.
+`xc-dev :proj init` scaffolds a self-resolving `[sim.default]` with `device = "iPhone 16"`.
+Run `xcrun simctl list devicetypes` to see all valid device type names.
+Run `xcrun simctl list runtimes` to see installed runtimes.
 
 ## `tasks.toml`
 

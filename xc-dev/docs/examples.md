@@ -30,7 +30,17 @@ cmd  = "set -o pipefail; xcodebuild -scheme {{scheme}} -configuration {{config}}
 
 ## Run (boot + install + launch)
 
+With a self-resolving simulator (recommended — `{{sim_id}}` triggers UDID resolution on
+first use):
+
 ```toml
+# simulator.toml
+[sim.default]
+name    = "xc-dev-default"
+device  = "iPhone 16"
+runtime = "iOS 26.2"
+
+# tasks.toml
 [tasks.run]
 depends = ["build"]
 desc    = "Build then boot the default sim, install, and launch"
@@ -39,6 +49,16 @@ xcrun simctl boot {{sim_id}} 2>/dev/null || true
 xcrun simctl install {{sim_id}} {{app_path}}
 xcrun simctl launch {{sim_id}} {{bundle_id}}
 """
+```
+
+With a pinned UDID (when you need a specific device):
+
+```toml
+# simulator.toml
+[sim.default]
+id      = "ABC-123-…"
+name    = "iPhone 17 Pro"
+runtime = "iOS 26.2"
 ```
 
 ## Run on a specific sim label
@@ -52,6 +72,22 @@ xcrun simctl install {{sim.ipad.id}} {{app_path}}
 xcrun simctl launch {{sim.ipad.id}} {{bundle_id}}
 """
 ```
+
+## Per-worktree simulator via git_worktree_name
+
+Each git worktree gets its own simulator automatically:
+
+```toml
+# simulator.toml
+[sim.default]
+name    = "{{git_worktree_name}}-sim"
+device  = "iPhone 16"
+runtime = "iOS 26.2"
+```
+
+When `{{sim_id}}` is first referenced in a worktree named `feat-login`, xc-dev looks for
+(or creates) a simulator named `feat-login-sim`. Different worktrees get different
+simulators, so they can run in parallel without boot conflicts.
 
 ## Test (xcodebuild)
 
