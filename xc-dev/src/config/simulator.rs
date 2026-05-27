@@ -12,9 +12,12 @@ pub struct SimulatorFile {
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Sim {
-    pub id: String,
+    /// Explicit UDID. When absent, the UDID is resolved lazily via `device` + `runtime`.
+    pub id: Option<String>,
     pub name: String,
     pub runtime: String,
+    /// Device type identifier (e.g. "iPhone 16"). Required when `id` is absent.
+    pub device: Option<String>,
 }
 
 pub fn parse(s: &str) -> Result<SimulatorFile> {
