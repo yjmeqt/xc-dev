@@ -262,3 +262,59 @@ cmd = "echo"
     let t = xc_dev::config::tasks::parse(t_toml).unwrap();
     xc_dev::vars::validate_tasks(&t).unwrap();
 }
+
+#[test]
+fn parses_project_configurations_overrides() {
+    let toml = r#"
+schema_version = 1
+[project]
+path = "MyApp.xcworkspace"
+scheme = "MyApp"
+configuration = "Debug"
+bundle_id = "com.example.myapp.debug"
+product_name = "MyApp Dev"
+min_ios_version = "26.0"
+
+[project.configurations.Release]
+bundle_id    = "com.example.myapp"
+product_name = "MyApp"
+
+[project.configurations.AdHoc]
+bundle_id = "com.example.myapp.adhoc"
+"#;
+    let p = xc_dev::config::project::parse(toml).unwrap();
+    assert_eq!(p.project.bundle_id, "com.example.myapp.debug");
+    assert_eq!(p.project.product_name, "MyApp Dev");
+
+    let release = p
+        .project
+        .configurations
+        .get("Release")
+        .expect("Release config");
+    assert_eq!(release.bundle_id.as_deref(), Some("com.example.myapp"));
+    assert_eq!(release.product_name.as_deref(), Some("MyApp"));
+    assert!(
+        release.min_ios_version.is_none(),
+        "min_ios_version omitted → None"
+    );
+
+    let adhoc = p.project.configurations.get("AdHoc").expect("AdHoc config");
+    assert_eq!(adhoc.bundle_id.as_deref(), Some("com.example.myapp.adhoc"));
+    assert!(adhoc.product_name.is_none(), "product_name omitted → None");
+    assert!(adhoc.min_ios_version.is_none());
+}
+
+#[test]
+fn parses_task_configuration_field() {
+    let toml = r#"
+[tasks.archive]
+configuration = "Release"
+cmd = "xcodebuild archive"
+
+[tasks.build]
+cmd = "xcodebuild build"
+"#;
+    let t = tasks::parse(toml).unwrap();
+    assert_eq!(t.tasks["archive"].configuration.as_deref(), Some("Release"));
+    assert!(t.tasks["build"].configuration.is_none());
+}
