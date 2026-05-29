@@ -227,6 +227,39 @@ cmd = "xcodebuild ... build | {{xcbeautify}}"
 
 `[vars]` keys must not collide with any reserved name (see above).
 
+### Nested `[vars]` tables
+
+`[vars]` supports arbitrarily nested TOML tables. Nested keys are flattened with `.`
+as the separator, so `[vars.accounts.02]` with `email = "…"` becomes the variable
+`accounts.02.email`:
+
+```toml
+[vars.accounts.02]
+email    = "test.02@mailinator.com"
+password = "PulseTest#2026!"
+user_id  = 16195
+
+[vars.accounts.03]
+email    = "test.03@mailinator.com"
+password = "12345678"
+```
+
+Reference in tasks:
+
+```sh
+xcrun simctl launch {{sim_id}} {{bundle_id}} --email {{accounts.02.email}}
+```
+
+Inspect from the shell:
+
+```sh
+xc-dev :get accounts.02.email
+xc-dev :get accounts.02.user_id
+```
+
+Supported leaf types: `string`, `integer` (converted to string), `boolean` (converted to
+`"true"`/`"false"`). Arrays and datetimes are rejected with a parse error.
+
 ## Inspecting variables from the shell
 
 The `:get` built-in resolves and prints a single variable. Useful for ad-hoc scripts and

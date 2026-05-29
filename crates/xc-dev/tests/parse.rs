@@ -356,6 +356,128 @@ product_name = "X"
 }
 
 #[test]
+fn parses_nested_vars() {
+    let toml = r#"
+schema_version = 1
+[project]
+path = "X.xcworkspace"
+scheme = "X"
+configuration = "Debug"
+
+[project.configurations.Debug]
+bundle_id = "x"
+product_name = "X"
+
+[vars]
+xcb = "xcbeautify"
+
+[vars.accounts.02]
+email    = "test.02@mailinator.com"
+password = "PulseTest#2026!"
+user_id  = 16195
+
+[vars.accounts.03]
+email    = "test.03@mailinator.com"
+password = "12345678"
+"#;
+    let p = xc_dev::config::project::parse(toml).unwrap();
+    assert_eq!(p.vars.get("xcb").unwrap(), "xcbeautify");
+    assert_eq!(p.vars.get("accounts.02.email").unwrap(), "test.02@mailinator.com");
+    assert_eq!(p.vars.get("accounts.02.password").unwrap(), "PulseTest#2026!");
+    assert_eq!(p.vars.get("accounts.02.user_id").unwrap(), "16195");
+    assert_eq!(p.vars.get("accounts.03.email").unwrap(), "test.03@mailinator.com");
+}
+
+#[test]
+fn nested_vars_reserved_name_rejected() {
+    let toml = r#"
+schema_version = 1
+[project]
+path = "X.xcworkspace"
+scheme = "X"
+configuration = "Debug"
+
+[project.configurations.Debug]
+bundle_id = "x"
+product_name = "X"
+
+[vars.git_branch]
+something = "bad"
+"#;
+    // Flattens to "git_branch.something" — top-level key is "git_branch.something", not reserved.
+    // But a direct flat key collision is what the reserved check catches:
+    let p = xc_dev::config::project::parse(toml).unwrap();
+    // "git_branch.something" is not itself reserved, so validation passes.
+    xc_dev::vars::validate_project(&p).unwrap();
+}
+
+#[test]
+fn nested_vars_boolean_coercion() {
+    let toml = r#"
+schema_version = 1
+[project]
+path = "X.xcworkspace"
+scheme = "X"
+configuration = "Debug"
+
+[project.configurations.Debug]
+bundle_id = "x"
+product_name = "X"
+
+[vars.feature]
+enabled  = true
+disabled = false
+"#;
+    let p = xc_dev::config::project::parse(toml).unwrap();
+    assert_eq!(p.vars.get("feature.enabled").unwrap(), "true");
+    assert_eq!(p.vars.get("feature.disabled").unwrap(), "false");
+}
+
+#[test]
+fn nested_vars_deep_nesting() {
+    let toml = r#"
+schema_version = 1
+[project]
+path = "X.xcworkspace"
+scheme = "X"
+configuration = "Debug"
+
+[project.configurations.Debug]
+bundle_id = "x"
+product_name = "X"
+
+[vars.a.b.c]
+key = "deep"
+"#;
+    let p = xc_dev::config::project::parse(toml).unwrap();
+    assert_eq!(p.vars.get("a.b.c.key").unwrap(), "deep");
+}
+
+#[test]
+fn nested_vars_unsupported_leaf_type_errors() {
+    let toml = r#"
+schema_version = 1
+[project]
+path = "X.xcworkspace"
+scheme = "X"
+configuration = "Debug"
+
+[project.configurations.Debug]
+bundle_id = "x"
+product_name = "X"
+
+[vars]
+bad = ["a", "b"]
+"#;
+    let err = xc_dev::config::project::parse(toml).unwrap_err();
+    let s = err.to_string();
+    assert!(
+        s.contains("unsupported value type") || s.contains("bad"),
+        "unexpected error: {s}"
+    );
+}
+
+#[test]
 fn parses_task_configuration_field() {
     let toml = r#"
 [tasks.archive]

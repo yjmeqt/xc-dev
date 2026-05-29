@@ -67,7 +67,8 @@ full block for each one automatically.
 | `[project].derived_data` | string | no | Default: `{{xc_dev_dir}}/DerivedData` (per-worktree isolation). |
 | `[project.configurations.<name>].bundle_id` | string | yes | App bundle identifier for this configuration. |
 | `[project.configurations.<name>].product_name` | string | yes | Used to derive `{{app_path}}` for this configuration. |
-| `[vars].<key>` | string | no | User-defined variables. See [variables.md](variables.md). |
+| `[vars].<key>` | string, integer, or boolean | no | User-defined flat variable. See [variables.md](variables.md). |
+| `[vars.<group>.<key>]` | table | no | Nested group; flattened to `group.key.*` dot-separated names. See [variables.md](variables.md). |
 
 A `[project.configurations.<name>]` block is **required** for every configuration name
 used — including `[project].configuration` (the default). `[vars]` keys cannot collide

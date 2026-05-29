@@ -200,6 +200,51 @@ xcbeautify = "xcbeautify --quiet"
 }
 
 #[test]
+fn get_nested_var() {
+    let tmp = tempdir().unwrap();
+    let dotdir = tmp.path().join(".xc-dev");
+    std::fs::create_dir_all(&dotdir).unwrap();
+    std::fs::write(
+        dotdir.join("project.toml"),
+        r#"
+schema_version = 1
+[project]
+path = "X.xcworkspace"
+scheme = "X"
+configuration = "Debug"
+
+[project.configurations.Debug]
+bundle_id = "com.x"
+product_name = "X"
+
+[vars.accounts.02]
+email    = "test.02@mailinator.com"
+password = "PulseTest#2026!"
+user_id  = 16195
+"#,
+    )
+    .unwrap();
+    std::fs::write(dotdir.join("simulator.toml"), "schema_version = 1\n").unwrap();
+    std::fs::write(dotdir.join("tasks.toml"), "[tasks.x]\ncmd=\"echo\"\n").unwrap();
+
+    Command::cargo_bin("xc-dev")
+        .unwrap()
+        .current_dir(tmp.path())
+        .args([":get", "accounts.02.email"])
+        .assert()
+        .success()
+        .stdout(predicates::str::starts_with("test.02@mailinator.com"));
+
+    Command::cargo_bin("xc-dev")
+        .unwrap()
+        .current_dir(tmp.path())
+        .args([":get", "accounts.02.user_id"])
+        .assert()
+        .success()
+        .stdout(predicates::str::starts_with("16195"));
+}
+
+#[test]
 fn doctor_runs_on_minimal_project_and_passes() {
     let tmp = tempdir().unwrap();
     write_minimal(tmp.path(), "[tasks.x]\ncmd = \"echo hi\"\n");
