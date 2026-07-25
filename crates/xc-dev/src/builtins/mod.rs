@@ -1,3 +1,4 @@
+pub mod clean;
 pub mod doctor;
 pub mod get;
 pub mod init;

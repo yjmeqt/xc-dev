@@ -25,6 +25,10 @@ pub enum Command {
     SimBake {
         label: Option<String>,
     },
+    /// `:clean [--yes]` — wipe local + system DerivedData for this project root.
+    Clean {
+        yes: bool,
+    },
 }
 
 pub fn parse(argv: &[String]) -> Result<Invocation, String> {
@@ -54,6 +58,20 @@ pub fn parse(argv: &[String]) -> Result<Invocation, String> {
             Command::Get { key }
         }
         ":doctor" => Command::Doctor,
+        ":clean" => {
+            let mut yes = false;
+            for a in &args {
+                match a.as_str() {
+                    "--yes" => yes = true,
+                    other => {
+                        return Err(format!(
+                            "unknown :clean flag `{other}` (usage: xc-dev :clean [--yes])"
+                        ))
+                    }
+                }
+            }
+            Command::Clean { yes }
+        }
         ":sim" => {
             let sub = args
                 .first()
@@ -240,5 +258,29 @@ mod tests {
     fn sim_unknown_subcommand_errors() {
         let err = p(&[":sim", "frobnicate"]).unwrap_err();
         assert!(err.contains("unknown :sim subcommand"));
+    }
+
+    #[test]
+    fn clean_default_is_dry_run() {
+        let i = p(&[":clean"]).unwrap();
+        match i.command {
+            Command::Clean { yes } => assert!(!yes),
+            other => panic!("expected Clean, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn clean_yes_flag() {
+        let i = p(&[":clean", "--yes"]).unwrap();
+        match i.command {
+            Command::Clean { yes } => assert!(yes),
+            other => panic!("expected Clean, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn clean_unknown_flag_errors() {
+        let err = p(&[":clean", "derived"]).unwrap_err();
+        assert!(err.contains("unknown :clean flag"));
     }
 }

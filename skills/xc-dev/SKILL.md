@@ -1,6 +1,6 @@
 ---
 name: xc-dev
-description: Use for iOS / Xcode build, run, test, and simulator workflows in projects that have an `.xc-dev/` directory. Routes work through `xc-dev <task>` instead of raw `xcodebuild`.
+description: Use for iOS / Xcode build, run, test, clean/DerivedData, and simulator workflows in projects that have an `.xc-dev/` directory. Routes work through `xc-dev <task>` or builtins like `:clean` instead of raw `xcodebuild`.
 ---
 
 # xc-dev
@@ -15,7 +15,7 @@ description: Use for iOS / Xcode build, run, test, and simulator workflows in pr
 Activate when **all** of these are true:
 
 - The user is doing iOS / Xcode work (build, run, test, install, launch, archive, log
-  stream, etc.).
+  stream, clean DerivedData, etc.).
 - The project has a `.xc-dev/` directory anywhere up from cwd (run
   `ls -d .xc-dev 2>/dev/null` or walk up; an existing `tasks.toml` is the dispositive
   signal).
@@ -83,6 +83,9 @@ Show the user the proposed task and ask before editing.
 | `xc-dev :list` | List all tasks with their `desc` |
 | `xc-dev :get <key>` | Print one variable |
 | `xc-dev :doctor` | Sanity-check config + every task's vars + depends |
+| `xc-dev :clean` | Dry-run: list local + system DerivedData for this project |
+| `xc-dev :clean --yes` | Delete them (Packages under the root included; skips `*.noindex`) |
+| `xc-dev :sim bake` | Resolve simulator UDIDs into `simulator.toml` |
 
 ## Common patterns
 
@@ -106,6 +109,21 @@ ls "$(xc-dev :get app_path)"
 
 `{{derived_data}}` defaults to `{{xc_dev_dir}}/DerivedData`, so each git worktree has its
 own build cache and they don't fight each other.
+
+**Clean DerivedData (local + system):**
+
+Prefer the builtin — do **not** only `rm -rf` local DerivedData or hand-scan
+`~/Library/Developer/Xcode/DerivedData` by folder name:
+
+```sh
+xc-dev :clean          # dry-run
+xc-dev :clean --yes    # delete local {{derived_data}} + system entries whose
+                       # info.plist WorkspacePath is under this project root
+                       # (main .xcodeproj and Packages/*)
+```
+
+If the project has a `clean` task, prefer `xc-dev clean` when it wraps `:clean`
+(and optionally `sim-delete`). Simulator deletion is **not** part of `:clean`.
 
 ## Reference docs
 

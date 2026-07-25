@@ -79,6 +79,8 @@ All built-ins are `:`-prefixed (they never collide with user task names):
 | `xc-dev :list` | List all tasks with their descriptions (default if no args) |
 | `xc-dev :get <key>` | Print one variable (for shell substitution / CI) |
 | `xc-dev :doctor` | Sanity-check the three TOMLs, `xcodebuild`, and every task's variable references |
+| `xc-dev :clean` | Dry-run: list local + system DerivedData for this project root |
+| `xc-dev :clean --yes` | Delete them (includes Packages under the root; skips `*.noindex`) |
 
 ## Built-in variables
 
