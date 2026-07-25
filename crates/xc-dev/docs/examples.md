@@ -173,12 +173,26 @@ xcrun simctl spawn {{sim_id}} log stream \\
 
 ## Clean DerivedData
 
-```toml
-[tasks.clean]
-desc = "Wipe the per-worktree DerivedData directory"
-cmd  = "rm -rf {{derived_data}}"
+Wipe this project's local `{{derived_data}}` **and** matching entries under
+`~/Library/Developer/Xcode/DerivedData` (matched by `info.plist` → `WorkspacePath`
+prefixing `{{project_root}}`, so Packages are included).
+
+```sh
+xc-dev :clean          # dry-run — print what would be removed
+xc-dev :clean --yes    # actually delete
 ```
 
+Or wrap it in a task (e.g. also delete the worktree simulator):
+
+```toml
+[tasks.clean]
+depends = ["sim-delete"]
+desc = "Wipe DerivedData (local + system) for this worktree"
+cmd  = "xc-dev :clean --yes"
+```
+
+Do **not** use a bare `rm -rf {{derived_data}}` alone — that misses system caches
+created by Xcode / package tests.
 ## CI: build, test, archive
 
 ```toml

@@ -189,6 +189,11 @@ xcrun simctl delete "$NAME" 2>/dev/null && echo "Deleted $NAME" || echo "Not pre
 rm -f {{xc_dev_dir}}/simulator.local.toml
 """
 
+[tasks.clean]
+depends = ["sim-delete"]
+desc = "Wipe local + system DerivedData for this project, then delete the worktree sim"
+cmd  = "xc-dev :clean --yes"
+
 # Example tasks — uncomment to enable:
 #
 # [tasks.run]

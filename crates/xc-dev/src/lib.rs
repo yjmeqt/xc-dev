@@ -1,6 +1,7 @@
 pub mod builtins;
 pub mod cli;
 pub mod config;
+pub mod derived_data;
 pub mod error;
 pub mod exec;
 pub mod paths;

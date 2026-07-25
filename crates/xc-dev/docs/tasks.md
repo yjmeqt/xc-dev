@@ -166,7 +166,7 @@ unknown name. See [`variables.md`](variables.md) for the full resolution order.
 ## Naming restrictions
 
 - Task names cannot start with `:` — that prefix is reserved for built-ins (`:list`,
-  `:get`, `:doctor`, `:proj init`).
+  `:get`, `:doctor`, `:proj init`, `:sim bake`, `:clean`).
 - Task names are otherwise free-form TOML keys.
 
 ## Discovering and inspecting tasks

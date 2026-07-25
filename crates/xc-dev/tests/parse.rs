@@ -382,10 +382,19 @@ password = "12345678"
 "#;
     let p = xc_dev::config::project::parse(toml).unwrap();
     assert_eq!(p.vars.get("xcb").unwrap(), "xcbeautify");
-    assert_eq!(p.vars.get("accounts.02.email").unwrap(), "test.02@mailinator.com");
-    assert_eq!(p.vars.get("accounts.02.password").unwrap(), "PulseTest#2026!");
+    assert_eq!(
+        p.vars.get("accounts.02.email").unwrap(),
+        "test.02@mailinator.com"
+    );
+    assert_eq!(
+        p.vars.get("accounts.02.password").unwrap(),
+        "PulseTest#2026!"
+    );
     assert_eq!(p.vars.get("accounts.02.user_id").unwrap(), "16195");
-    assert_eq!(p.vars.get("accounts.03.email").unwrap(), "test.03@mailinator.com");
+    assert_eq!(
+        p.vars.get("accounts.03.email").unwrap(),
+        "test.03@mailinator.com"
+    );
 }
 
 #[test]
