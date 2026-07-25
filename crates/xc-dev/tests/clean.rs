@@ -59,10 +59,7 @@ fn clean_dry_run_lists_but_does_not_delete() {
 
     let hit = sys.join("App-aaaaaaaaaaaaaaaaaaaaaaaaaaaa");
     fs::create_dir_all(&hit).unwrap();
-    write_xml_plist(
-        &hit.join("info.plist"),
-        &format!("{root_s}/Packages/Lib"),
-    );
+    write_xml_plist(&hit.join("info.plist"), &format!("{root_s}/Packages/Lib"));
 
     let miss = sys.join("App-bbbbbbbbbbbbbbbbbbbbbbbbbbbb");
     fs::create_dir_all(&miss).unwrap();
@@ -78,7 +75,10 @@ fn clean_dry_run_lists_but_does_not_delete() {
     let out = String::from_utf8_lossy(&assert.get_output().stdout);
     assert!(out.contains("DRY-RUN"), "{out}");
     assert!(out.contains("would rm"), "{out}");
-    assert!(out.contains("Packages/Lib") || out.contains(&root_s), "{out}");
+    assert!(
+        out.contains("Packages/Lib") || out.contains(&root_s),
+        "{out}"
+    );
     assert!(local.exists(), "dry-run must not delete local DerivedData");
     assert!(hit.exists(), "dry-run must not delete system hit");
     assert!(miss.exists());

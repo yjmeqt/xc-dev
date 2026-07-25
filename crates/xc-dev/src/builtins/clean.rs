@@ -45,10 +45,7 @@ pub fn run(cwd: &Path, yes: bool, system_dd: Option<&Path>) -> Result<i32> {
 
     // Local per-worktree DerivedData
     if local_dd.exists() {
-        delete_dirs.push((
-            local_dd.clone(),
-            format!("local {}", local_dd.display()),
-        ));
+        delete_dirs.push((local_dd.clone(), format!("local {}", local_dd.display())));
     }
 
     let candidates = if system_root.is_dir() {
@@ -86,7 +83,11 @@ pub fn run(cwd: &Path, yes: bool, system_dd: Option<&Path>) -> Result<i32> {
         println!("  (nothing to remove)");
     } else {
         for (dir, note) in &delete_dirs {
-            println!("  {}  {}", if yes { "rm" } else { "would rm" }, dir.display());
+            println!(
+                "  {}  {}",
+                if yes { "rm" } else { "would rm" },
+                dir.display()
+            );
             println!("      {}", note);
         }
     }

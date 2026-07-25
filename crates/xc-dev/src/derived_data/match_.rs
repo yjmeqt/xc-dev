@@ -37,10 +37,7 @@ mod tests {
     #[test]
     fn matches_project_and_packages() {
         let root = "/Users/u/app/.worktrees/feat";
-        assert!(belongs_to_project(
-            &format!("{root}/Pulse.xcodeproj"),
-            root
-        ));
+        assert!(belongs_to_project(&format!("{root}/Pulse.xcodeproj"), root));
         assert!(belongs_to_project(
             &format!("{root}/Packages/PulseComment"),
             root
@@ -55,10 +52,7 @@ mod tests {
             "/Users/u/app/.worktrees/other/Pulse.xcodeproj",
             root
         ));
-        assert!(!belongs_to_project(
-            "/Users/u/app/Pulse.xcodeproj",
-            root
-        ));
+        assert!(!belongs_to_project("/Users/u/app/Pulse.xcodeproj", root));
         // /foo must not match /foo-bar
         assert!(!belongs_to_project(
             "/Users/u/app/.worktrees/feat-extra/Pulse.xcodeproj",

@@ -181,17 +181,11 @@ mod tests {
 
         let pkg = dd.join("Lib-bbbbbbbbbbbbbbbbbbbbbbbbbbbb");
         fs::create_dir_all(&pkg).unwrap();
-        write_xml_plist(
-            &pkg.join("info.plist"),
-            &format!("{root_s}/Packages/Lib"),
-        );
+        write_xml_plist(&pkg.join("info.plist"), &format!("{root_s}/Packages/Lib"));
 
         let other = dd.join("App-cccccccccccccccccccccccccccc");
         fs::create_dir_all(&other).unwrap();
-        write_xml_plist(
-            &other.join("info.plist"),
-            "/somewhere/else/App.xcodeproj",
-        );
+        write_xml_plist(&other.join("info.plist"), "/somewhere/else/App.xcodeproj");
 
         let noindex = dd.join("ModuleCache.noindex");
         fs::create_dir_all(&noindex).unwrap();
@@ -206,7 +200,10 @@ mod tests {
                 Candidate::Delete {
                     dir,
                     workspace_path,
-                } => Some((dir.file_name().unwrap().to_string_lossy().to_string(), workspace_path.clone())),
+                } => Some((
+                    dir.file_name().unwrap().to_string_lossy().to_string(),
+                    workspace_path.clone(),
+                )),
                 _ => None,
             })
             .collect();
