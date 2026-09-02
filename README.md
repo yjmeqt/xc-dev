@@ -8,9 +8,10 @@ injects scheme, bundle id, simulator id, derived data path, git branch, etc. as
 ## Save disk space with git worktrees
 
 Git worktrees are cheap. iOS builds are not. Each checkout that hits Xcode
-leaves a **10GB+** tree under `~/Library/Developer/Xcode/DerivedData`, and those
-folders stay on disk after you delete the worktree. A handful of feature
-branches can eat hundreds of gigabytes.
+leaves a **10GB+** tree under `~/Library/Developer/Xcode/DerivedData`. Parallel
+tests then clone the destination sim into `~/Library/Developer/XCTestDevices`
+(`Clone N of …`) at another few GB each. Both survive after you delete the
+worktree. A handful of feature branches can eat hundreds of gigabytes.
 
 xc-dev is built for that workflow:
 
@@ -20,8 +21,11 @@ xc-dev is built for that workflow:
 - **Reclaim the leftovers** — `xc-dev :clean` lists (and `--yes` deletes) this
   worktree's local cache *and* any system DerivedData whose `WorkspacePath`
   belongs here. Tear down a feature branch without leaving 10GB behind.
-- **Worktree-tagged simulators** — each checkout can own a sim
-  (`{{product_name}}-{{git_worktree_name}}`); `clean` can delete that too.
+- **Worktree-tagged simulators (and their XCTest clones)** — each checkout can
+  own a sim (`{{product_name}}-{{git_worktree_name}}`). XCTest copies inherit
+  that name (`Clone 2 of Pulse-feat-login`), so leftover clones stay
+  attributable to the worktree instead of becoming anonymous gigabytes.
+  `clean` can delete the parent sim too.
 
 ## Install
 
