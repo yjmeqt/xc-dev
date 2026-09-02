@@ -6,6 +6,12 @@ A task runner for Xcode projects. Declare `build`, `run`, `test`, `test-package`
 
 Think `package.json` scripts or a `Justfile`, but Xcode-aware out of the box.
 
+**Built for git worktrees.** Each iOS checkout typically leaves a 10GB+ DerivedData
+folder under `~/Library/Developer/Xcode/DerivedData` that survives after you delete
+the worktree. xc-dev keeps a per-worktree cache in `.xc-dev/DerivedData` and
+`xc-dev :clean` reclaims both that cache and matching system leftovers — so you can
+run many feature branches without the disk filling up.
+
 ## Install
 
 **The binary:**
