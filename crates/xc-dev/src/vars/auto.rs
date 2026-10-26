@@ -77,6 +77,7 @@ pub const RESERVED: &[&str] = &[
     "git_sha",
     "git_worktree_dir",
     "git_worktree_name",
+    "git_worktree_slug",
     "git_main_root",
     "sim_id",
     "sim_name",
