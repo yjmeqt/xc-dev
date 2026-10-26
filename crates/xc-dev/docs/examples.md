@@ -73,21 +73,22 @@ xcrun simctl launch {{sim.ipad.id}} {{bundle_id}}
 """
 ```
 
-## Per-worktree simulator via git_worktree_name
+## Per-worktree simulator via git_worktree_slug
 
 Each git worktree gets its own simulator automatically:
 
 ```toml
 # simulator.toml
 [sim.default]
-name    = "{{git_worktree_name}}-sim"
+name    = "{{git_worktree_slug}}-sim"
 device  = "iPhone 16"
 runtime = "iOS 26.2"
 ```
 
-When `{{sim_id}}` is first referenced in a worktree named `feat-login`, xc-dev looks for
-(or creates) a simulator named `feat-login-sim`. Different worktrees get different
-simulators, so they can run in parallel without boot conflicts.
+When `{{sim_id}}` is first referenced in a worktree at `.worktrees/feat-login/main`, xc-dev
+looks for (or creates) a simulator named `feat-login-main-sim`. Different worktrees get
+different simulators even when their directories share a basename, so they can run in
+parallel without boot conflicts.
 
 ## Test (xcodebuild)
 
@@ -242,13 +243,13 @@ Running `:sim bake` a second time is a no-op for entries that already have `id` 
 For teams who *do* check in `simulator.toml` without `id`, xc-dev maintains a per-machine
 UDID cache at `.xc-dev/simulator.local.toml` (gitignored) automatically — no manual baking needed.
 
-## Per-worktree caches via `{{git_worktree_name}}`
+## Per-worktree caches via `{{git_worktree_slug}}`
 
 ```toml
 [tasks.cache]
 desc = "Snapshot the build output into a worktree-specific cache dir"
 cmd  = """
-mkdir -p ~/Library/Caches/xc-dev/{{git_worktree_name}}
-cp -R {{app_path}} ~/Library/Caches/xc-dev/{{git_worktree_name}}/
+mkdir -p ~/Library/Caches/xc-dev/{{git_worktree_slug}}
+cp -R {{app_path}} ~/Library/Caches/xc-dev/{{git_worktree_slug}}/
 """
 ```

@@ -139,12 +139,14 @@ schema_version = 1
 #
 # `name` is template-rendered; the default below gives each git worktree of the
 # same project its own sim (e.g. "Pulse-fix-inner-feed-caption-shrink") so
-# parallel worktrees don't fight over a single simulator.
+# parallel worktrees don't fight over a single simulator. `git_worktree_slug`
+# rather than `git_worktree_name`: `.worktrees/a/main` and `.worktrees/b/main`
+# share a basename but not a slug.
 #
 # Opt-in: run `xc-dev :sim bake` to resolve the UDID once and write `id = "…"`
 # directly into this file (commits the UDID to source control).
 [sim.default]
-name    = "{{product_name}}-{{git_worktree_name}}"
+name    = "{{product_name}}-{{git_worktree_slug}}"
 device  = "iPhone 16"
 runtime = "iOS 26.2"
 
@@ -152,7 +154,7 @@ runtime = "iOS 26.2"
 #
 # To add another simulator (e.g. an iPad):
 # [sim.ipad]
-# name    = "{{product_name}}-{{git_worktree_name}}-ipad"
+# name    = "{{product_name}}-{{git_worktree_slug}}-ipad"
 # device  = "iPad Pro 11-inch (M4)"
 # runtime = "iOS 26.2"
 "#;

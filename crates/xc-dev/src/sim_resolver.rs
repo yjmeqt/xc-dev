@@ -11,6 +11,16 @@ use std::path::{Path, PathBuf};
 /// File name of the on-disk UDID cache.
 pub const CACHE_FILE: &str = "simulator.local.toml";
 
+/// One cached resolution: the UDID and the rendered name it was resolved for.
+///
+/// `name` is `None` for caches written before names were recorded. Such an
+/// entry never matches, so the label re-resolves once and records its name.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CachedSim {
+    id: String,
+    name: Option<String>,
+}
+
 /// In-memory + on-disk cache of `label -> UDID` entries.
 ///
 /// Cache file: `<xc_dev_dir>/simulator.local.toml`.
@@ -18,11 +28,16 @@ pub const CACHE_FILE: &str = "simulator.local.toml";
 /// ```toml
 /// [sim.default]
 /// id = "ABC-DEF-..."
+/// name = "MyApp-feat"
 /// ```
+///
+/// A hit requires the cached `name` to equal the currently rendered name, so a
+/// `simulator.toml` whose name template changes moves to the new simulator
+/// instead of staying on the one it resolved first.
 pub struct SimResolver {
     cache_path: PathBuf,
-    /// In-memory map of `"<label>" → <udid>`.
-    cache: HashMap<String, String>,
+    /// In-memory map of `"<label>" → cached resolution`.
+    cache: HashMap<String, CachedSim>,
     /// Whether the cache was loaded / validated from disk already.
     loaded: bool,
 }
@@ -51,13 +66,21 @@ impl SimResolver {
         // Ensure cache is loaded + validated.
         self.ensure_loaded()?;
 
-        if let Some(udid) = self.cache.get(label) {
-            return Ok(udid.clone());
+        if let Some(cached) = self.cache.get(label) {
+            if cached.name.as_deref() == Some(rendered_name) {
+                return Ok(cached.id.clone());
+            }
         }
 
-        // Not in cache — look it up or create it.
+        // Not in cache (or cached under another name) — look it up or create it.
         let udid = self.find_or_create(rendered_name, device, runtime)?;
-        self.cache.insert(label.to_string(), udid.clone());
+        self.cache.insert(
+            label.to_string(),
+            CachedSim {
+                id: udid.clone(),
+                name: Some(rendered_name.to_string()),
+            },
+        );
         self.persist()?;
         Ok(udid)
     }
@@ -83,7 +106,7 @@ impl SimResolver {
         // Validate each cached UDID — drop stale entries.
         let live_udids = live_udid_set()?;
         for (k, v) in on_disk {
-            if live_udids.contains(&v) {
+            if live_udids.contains(&v.id) {
                 self.cache.insert(k, v);
             }
         }
@@ -122,10 +145,10 @@ impl SimResolver {
 
 // ─── TOML cache serialization ────────────────────────────────────────────────
 
-/// Parse the on-disk TOML cache into a `HashMap<label, udid>`.
+/// Parse the on-disk TOML cache into a `HashMap<label, CachedSim>`.
 /// Tolerates missing file or malformed TOML (returns empty map).
-fn parse_cache_toml(raw: &str) -> HashMap<String, String> {
-    // Expected structure: { sim: { <label>: { id: "<udid>" } } }
+fn parse_cache_toml(raw: &str) -> HashMap<String, CachedSim> {
+    // Expected structure: { sim: { <label>: { id: "<udid>", name: "<name>" } } }
     let value: toml::Value = match toml::from_str(raw) {
         Ok(v) => v,
         Err(_) => return HashMap::new(),
@@ -134,15 +157,25 @@ fn parse_cache_toml(raw: &str) -> HashMap<String, String> {
     if let Some(sim_table) = value.get("sim").and_then(|s| s.as_table()) {
         for (label, entry) in sim_table {
             if let Some(id) = entry.get("id").and_then(|v| v.as_str()) {
-                map.insert(label.clone(), id.to_string());
+                let name = entry
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string);
+                map.insert(
+                    label.clone(),
+                    CachedSim {
+                        id: id.to_string(),
+                        name,
+                    },
+                );
             }
         }
     }
     map
 }
 
-/// Serialize a `HashMap<label, udid>` into the TOML cache format.
-fn serialize_cache_toml(cache: &HashMap<String, String>) -> String {
+/// Serialize a `HashMap<label, CachedSim>` into the TOML cache format.
+fn serialize_cache_toml(cache: &HashMap<String, CachedSim>) -> String {
     let mut out = String::from(
         "# .xc-dev/simulator.local.toml\n\
          # Auto-managed by xc-dev. Per-machine UDID cache. Gitignored.\n\
@@ -152,10 +185,13 @@ fn serialize_cache_toml(cache: &HashMap<String, String>) -> String {
     let mut labels: Vec<&String> = cache.keys().collect();
     labels.sort();
     for label in labels {
-        let udid = &cache[label];
+        let cached = &cache[label];
         out.push('\n');
         out.push_str(&format!("[sim.{label}]\n"));
-        out.push_str(&format!("id = \"{udid}\"\n"));
+        out.push_str(&format!("id = \"{}\"\n", cached.id));
+        if let Some(name) = &cached.name {
+            out.push_str(&format!("name = {}\n", toml::Value::String(name.clone())));
+        }
     }
     out
 }
@@ -415,11 +451,24 @@ fn runtime_key_matches(key: &str, normalized: &str) -> bool {
 mod tests {
     use super::*;
 
+    fn entry(id: &str, name: Option<&str>) -> CachedSim {
+        CachedSim {
+            id: id.to_string(),
+            name: name.map(str::to_string),
+        }
+    }
+
     #[test]
     fn cache_toml_round_trip() {
         let mut cache = HashMap::new();
-        cache.insert("default".to_string(), "ABC-DEF-1234".to_string());
-        cache.insert("ipad".to_string(), "GHI-JKL-5678".to_string());
+        cache.insert(
+            "default".to_string(),
+            entry("ABC-DEF-1234", Some("App-feat-main")),
+        );
+        cache.insert(
+            "ipad".to_string(),
+            entry("GHI-JKL-5678", Some("App \"quoted\"")),
+        );
 
         let serialized = serialize_cache_toml(&cache);
         // Should contain [sim.default] and [sim.ipad] sections.
@@ -431,10 +480,19 @@ mod tests {
         // Round-trip: parse it back.
         let parsed = parse_cache_toml(&serialized);
         assert_eq!(
-            parsed.get("default").map(String::as_str),
-            Some("ABC-DEF-1234")
+            parsed.get("default"),
+            Some(&entry("ABC-DEF-1234", Some("App-feat-main")))
         );
-        assert_eq!(parsed.get("ipad").map(String::as_str), Some("GHI-JKL-5678"));
+        assert_eq!(
+            parsed.get("ipad"),
+            Some(&entry("GHI-JKL-5678", Some("App \"quoted\"")))
+        );
+    }
+
+    #[test]
+    fn legacy_entry_without_name_parses_with_no_name() {
+        let parsed = parse_cache_toml("[sim.default]\nid = \"OLD-UDID\"\n");
+        assert_eq!(parsed.get("default"), Some(&entry("OLD-UDID", None)));
     }
 
     #[test]
@@ -457,10 +515,7 @@ mod tests {
 id = "MY-UDID-XXXX"
 "#;
         let parsed = parse_cache_toml(raw);
-        assert_eq!(
-            parsed.get("default").map(String::as_str),
-            Some("MY-UDID-XXXX")
-        );
+        assert_eq!(parsed.get("default"), Some(&entry("MY-UDID-XXXX", None)));
         assert_eq!(parsed.len(), 1);
     }
 
