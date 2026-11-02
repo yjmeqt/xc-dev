@@ -251,8 +251,9 @@ fn find_existing(name: &str, runtime: &str) -> Result<Option<String>> {
 fn create_simulator(name: &str, device: &str, runtime: &str) -> Result<String> {
     // Resolve device type identifier.
     let device_type_id = resolve_device_type(device)?;
-    // Resolve runtime identifier.
-    let runtime_id = resolve_runtime_id(runtime)?;
+    // Resolve runtime identifier (device-aware so duplicate display names like
+    // two "iOS 27.2" runtimes — general vs device-specific — pick the right one).
+    let runtime_id = resolve_runtime_id(runtime, Some(&device_type_id))?;
 
     let out = std::process::Command::new("xcrun")
         .args(["simctl", "create", name, &device_type_id, &runtime_id])
@@ -333,8 +334,14 @@ fn resolve_device_type(device: &str) -> Result<String> {
     })
 }
 
-/// Look up the runtime identifier for a human-readable name like "iOS 17.0".
-fn resolve_runtime_id(runtime: &str) -> Result<String> {
+/// Look up the runtime identifier for a human-readable name like "iOS 17.0",
+/// a SimRuntime identifier, or an identifier suffix like `iOS-27-2-iPhone19-4`.
+///
+/// When several runtimes share a display name (e.g. a general `iOS 27.2` and a
+/// device-specific `iOS 27.2` for iPhone Duo), `device_type_id` narrows to a
+/// runtime that lists that device under `supportedDeviceTypes`. Among remaining
+/// ties, prefer an exact identifier-suffix match to the normalized query.
+fn resolve_runtime_id(runtime: &str, device_type_id: Option<&str>) -> Result<String> {
     let out = std::process::Command::new("xcrun")
         .args(["simctl", "list", "runtimes", "--json"])
         .output()
@@ -357,28 +364,28 @@ fn resolve_runtime_id(runtime: &str) -> Result<String> {
 
     let normalized = normalize_runtime(runtime);
 
-    // Prefer available runtimes.
+    let mut available: Vec<&serde_json::Value> = Vec::new();
+    let mut unavailable: Vec<&serde_json::Value> = Vec::new();
     for rt in runtimes.iter() {
+        if !runtime_matches(rt, runtime, &normalized) {
+            continue;
+        }
         let is_avail = rt
             .get("isAvailable")
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
-        if !is_avail {
-            continue;
-        }
-        if runtime_matches(rt, runtime, &normalized) {
-            if let Some(id) = rt.get("identifier").and_then(|i| i.as_str()) {
-                return Ok(id.to_string());
-            }
+        if is_avail {
+            available.push(rt);
+        } else {
+            unavailable.push(rt);
         }
     }
-    // Fall back to unavailable.
-    for rt in runtimes.iter() {
-        if runtime_matches(rt, runtime, &normalized) {
-            if let Some(id) = rt.get("identifier").and_then(|i| i.as_str()) {
-                return Ok(id.to_string());
-            }
-        }
+
+    if let Some(id) = pick_runtime_id(&available, runtime, &normalized, device_type_id) {
+        return Ok(id);
+    }
+    if let Some(id) = pick_runtime_id(&unavailable, runtime, &normalized, device_type_id) {
+        return Ok(id);
     }
 
     Err(XcDevError::VarUnavailable {
@@ -389,10 +396,86 @@ fn resolve_runtime_id(runtime: &str) -> Result<String> {
     })
 }
 
+/// Choose one runtime from a pre-filtered match list.
+fn pick_runtime_id(
+    matches: &[&serde_json::Value],
+    runtime: &str,
+    normalized: &str,
+    device_type_id: Option<&str>,
+) -> Option<String> {
+    if matches.is_empty() {
+        return None;
+    }
+
+    // Exact full-identifier or suffix hit wins immediately.
+    for rt in matches {
+        let Some(id) = rt.get("identifier").and_then(|i| i.as_str()) else {
+            continue;
+        };
+        if id == runtime || identifier_suffix(id).eq_ignore_ascii_case(runtime) {
+            return Some(id.to_string());
+        }
+    }
+
+    let mut candidates: Vec<&serde_json::Value> = matches.to_vec();
+    if let Some(device_id) = device_type_id {
+        let compatible: Vec<&serde_json::Value> = candidates
+            .iter()
+            .copied()
+            .filter(|rt| runtime_supports_device(rt, device_id))
+            .collect();
+        if !compatible.is_empty() {
+            candidates = compatible;
+        }
+    }
+
+    if candidates.len() == 1 {
+        return candidates[0]
+            .get("identifier")
+            .and_then(|i| i.as_str())
+            .map(str::to_string);
+    }
+
+    // Among remaining ties (same display name), prefer the runtime whose
+    // identifier suffix equals the normalized query exactly — e.g. query
+    // "iOS 27.2" → "ios-27-2" prefers `…iOS-27-2` over `…iOS-27-2-iPhone19-4`.
+    for rt in &candidates {
+        let id = rt.get("identifier").and_then(|i| i.as_str()).unwrap_or("");
+        if runtime_key_matches(id, normalized) {
+            return Some(id.to_string());
+        }
+    }
+
+    candidates[0]
+        .get("identifier")
+        .and_then(|i| i.as_str())
+        .map(str::to_string)
+}
+
+fn runtime_supports_device(rt: &serde_json::Value, device_type_id: &str) -> bool {
+    let Some(types) = rt.get("supportedDeviceTypes").and_then(|t| t.as_array()) else {
+        // Older simctl payloads may omit the list — don't eliminate the candidate.
+        return true;
+    };
+    types.iter().any(|dt| {
+        dt.get("identifier")
+            .and_then(|i| i.as_str())
+            .is_some_and(|id| id == device_type_id)
+    })
+}
+
 fn runtime_matches(rt: &serde_json::Value, runtime: &str, normalized: &str) -> bool {
     let name = rt.get("name").and_then(|n| n.as_str()).unwrap_or("");
     let id = rt.get("identifier").and_then(|i| i.as_str()).unwrap_or("");
-    name == runtime || normalize_runtime(name) == normalized || runtime_key_matches(id, normalized)
+    id == runtime
+        || identifier_suffix(id).eq_ignore_ascii_case(runtime)
+        || name == runtime
+        || normalize_runtime(name) == normalized
+        || runtime_key_matches(id, normalized)
+}
+
+fn identifier_suffix(id: &str) -> &str {
+    id.split('.').next_back().unwrap_or(id)
 }
 
 /// Normalize "iOS 17.0" → "ios-17-0" for loose matching.
@@ -470,6 +553,106 @@ id = "MY-UDID-XXXX"
         let _resolver = SimResolver::new(tmp.path());
         // Cache file should not exist yet.
         assert!(!tmp.path().join(CACHE_FILE).exists());
+    }
+
+    fn runtime_json(name: &str, id: &str, devices: &[&str]) -> serde_json::Value {
+        serde_json::json!({
+            "name": name,
+            "identifier": id,
+            "supportedDeviceTypes": devices.iter().map(|d| serde_json::json!({
+                "identifier": d
+            })).collect::<Vec<_>>(),
+        })
+    }
+
+    #[test]
+    fn pick_runtime_prefers_device_compatible_among_same_display_name() {
+        let general = runtime_json(
+            "iOS 27.2",
+            "com.apple.CoreSimulator.SimRuntime.iOS-27-2",
+            &["com.apple.CoreSimulator.SimDeviceType.iPhone-17"],
+        );
+        let duo = runtime_json(
+            "iOS 27.2",
+            "com.apple.CoreSimulator.SimRuntime.iOS-27-2-iPhone19-4",
+            &["com.apple.CoreSimulator.SimDeviceType.iPhone-Duo"],
+        );
+        // Duo-specific runtime listed first — old code would grab it for iPhone 17.
+        let matches = vec![&duo, &general];
+        let id = pick_runtime_id(
+            &matches,
+            "iOS 27.2",
+            &normalize_runtime("iOS 27.2"),
+            Some("com.apple.CoreSimulator.SimDeviceType.iPhone-17"),
+        );
+        assert_eq!(
+            id.as_deref(),
+            Some("com.apple.CoreSimulator.SimRuntime.iOS-27-2")
+        );
+
+        let id = pick_runtime_id(
+            &matches,
+            "iOS 27.2",
+            &normalize_runtime("iOS 27.2"),
+            Some("com.apple.CoreSimulator.SimDeviceType.iPhone-Duo"),
+        );
+        assert_eq!(
+            id.as_deref(),
+            Some("com.apple.CoreSimulator.SimRuntime.iOS-27-2-iPhone19-4")
+        );
+    }
+
+    #[test]
+    fn pick_runtime_accepts_full_identifier_and_suffix() {
+        let general = runtime_json(
+            "iOS 27.2",
+            "com.apple.CoreSimulator.SimRuntime.iOS-27-2",
+            &["com.apple.CoreSimulator.SimDeviceType.iPhone-17"],
+        );
+        let duo = runtime_json(
+            "iOS 27.2",
+            "com.apple.CoreSimulator.SimRuntime.iOS-27-2-iPhone19-4",
+            &["com.apple.CoreSimulator.SimDeviceType.iPhone-Duo"],
+        );
+        let matches = vec![&duo, &general];
+
+        let id = pick_runtime_id(
+            &matches,
+            "com.apple.CoreSimulator.SimRuntime.iOS-27-2",
+            &normalize_runtime("com.apple.CoreSimulator.SimRuntime.iOS-27-2"),
+            None,
+        );
+        assert_eq!(
+            id.as_deref(),
+            Some("com.apple.CoreSimulator.SimRuntime.iOS-27-2")
+        );
+
+        let id = pick_runtime_id(
+            &matches,
+            "iOS-27-2-iPhone19-4",
+            &normalize_runtime("iOS-27-2-iPhone19-4"),
+            None,
+        );
+        assert_eq!(
+            id.as_deref(),
+            Some("com.apple.CoreSimulator.SimRuntime.iOS-27-2-iPhone19-4")
+        );
+    }
+
+    #[test]
+    fn runtime_matches_full_identifier() {
+        let general = runtime_json(
+            "iOS 27.2",
+            "com.apple.CoreSimulator.SimRuntime.iOS-27-2",
+            &[],
+        );
+        let q = "com.apple.CoreSimulator.SimRuntime.iOS-27-2";
+        assert!(runtime_matches(&general, q, &normalize_runtime(q)));
+        assert!(runtime_matches(
+            &general,
+            "iOS-27-2",
+            &normalize_runtime("iOS-27-2")
+        ));
     }
 
     #[test]
