@@ -11,7 +11,7 @@ folder under `~/Library/Developer/Xcode/DerivedData`, plus XCTestDevices clones
 (`Clone N of …` under `~/Library/Developer/XCTestDevices`, a few GB each). Both
 survive after you delete the worktree. xc-dev keeps a per-worktree cache in
 `.xc-dev/DerivedData`, tags sims (and their XCTest copies) with
-`{{git_worktree_name}}`, and `xc-dev :clean` reclaims the DerivedData leftovers —
+`{{git_worktree_slug}}`, and `xc-dev :clean` reclaims the DerivedData leftovers —
 so you can run many feature branches without the disk filling up.
 
 ## Install
@@ -97,7 +97,7 @@ A small set of variables are always available (lazy-evaluated where they call ou
 `{{project_root}}`, `{{xc_dev_dir}}`, `{{derived_data}}`, `{{build_products_dir}}`,
 `{{app_path}}`, `{{date}}`, `{{timestamp}}`, `{{user}}`, `{{home}}`,
 `{{git_root}}`, `{{git_branch}}`, `{{git_sha}}`, `{{git_worktree_dir}}`,
-`{{git_worktree_name}}`, `{{git_main_root}}`,
+`{{git_worktree_name}}`, `{{git_worktree_slug}}`, `{{git_main_root}}`,
 `{{sim_id}}`, `{{sim_name}}`, `{{sim_runtime}}` (default sim — use `{{sim.<label>.id}}` for others),
 plus every field in `[project]` and every key in `[vars]`.
 

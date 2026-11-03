@@ -39,7 +39,7 @@ Reserved set:
 ```
 project_root  xc_dev_dir  derived_data  build_products_dir  app_path
 date  timestamp  user  home
-git_root  git_branch  git_sha  git_worktree_dir  git_worktree_name  git_main_root
+git_root  git_branch  git_sha  git_worktree_dir  git_worktree_name  git_worktree_slug  git_main_root
 sim_id  sim_name  sim_runtime
 path  scheme  configuration  bundle_id  product_name
 ```
@@ -84,7 +84,12 @@ shells out once.
 | `{{git_sha}}` | `git rev-parse --short HEAD` |
 | `{{git_worktree_dir}}` | `git rev-parse --show-toplevel` (same as `git_root` in normal clones) |
 | `{{git_worktree_name}}` | `basename({{git_worktree_dir}})` |
+| `{{git_worktree_slug}}` | `{{git_worktree_dir}}` relative to `{{git_main_root}}` (or its parent, for sibling worktrees), leading hidden dirs dropped, joined by `-`. The main checkout keeps its basename. |
 | `{{git_main_root}}` | First `worktree …` line from `git worktree list --porcelain` |
+
+`git_worktree_name` is not unique: `.worktrees/feat-a/main` and `.worktrees/feat-b/main`
+are both `main`. Use `git_worktree_slug` (`feat-a-main`, `feat-b-main`) for anything that
+must not be shared between worktrees, such as simulator names.
 
 Referencing a `git_*` variable outside a git repository (or when `git` exits non-zero)
 fails with `variable X unavailable: <git error>`. Tasks that don't reference git vars are
@@ -173,9 +178,9 @@ runtime = "iOS 26.2"
 ```
 
 `{{sim_id}}` triggers resolution:
-1. Load cache from `.xc-dev/.sim-cache.json` (per-machine, gitignored).
+1. Load cache from `.xc-dev/simulator.local.toml` (per-machine, gitignored).
 2. Validate cached UDIDs against `xcrun simctl list devices --json`; drop stale entries.
-3. If a cache hit exists, return it immediately.
+3. If a cache hit exists for the same rendered `name`, return it immediately.
 4. Otherwise look for an existing simulator with matching `name` + `runtime`.
 5. If none found, create one via `xcrun simctl create <name> <device-type> <runtime>`.
 6. Write the UDID to cache.
@@ -186,7 +191,7 @@ literal template values (after template rendering, see below).
 The `name` value may contain template variables, e.g.:
 
 ```toml
-name = "{{git_worktree_name}}-sim"
+name = "{{git_worktree_slug}}-sim"
 ```
 
 Variables whose names start with `sim` are excluded from this rendering step to prevent

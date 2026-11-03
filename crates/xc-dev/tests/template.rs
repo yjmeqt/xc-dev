@@ -289,6 +289,55 @@ fn git_branch_in_real_repo() {
 }
 
 #[test]
+fn git_worktree_slug_is_unique_for_nested_worktrees_with_the_same_leaf() {
+    let tmp = tempfile::tempdir().unwrap();
+    let main = tmp.path().join("App");
+    std::fs::create_dir_all(&main).unwrap();
+    let git = |dir: &std::path::Path, args: &[&str]| {
+        let out = std::process::Command::new("git")
+            .args(args)
+            .current_dir(dir)
+            .output()
+            .unwrap();
+        assert!(out.status.success(), "git {args:?}: {out:?}");
+    };
+    git(&main, &["init", "-q", "-b", "trunk"]);
+    git(
+        &main,
+        &[
+            "-c",
+            "user.name=t",
+            "-c",
+            "user.email=t@t",
+            "commit",
+            "-q",
+            "--allow-empty",
+            "-m",
+            "i",
+        ],
+    );
+    git(
+        &main,
+        &["worktree", "add", "-q", ".worktrees/feat-a/main", "-b", "a"],
+    );
+    git(
+        &main,
+        &["worktree", "add", "-q", ".worktrees/feat-b/main", "-b", "b"],
+    );
+
+    let slug = |root: std::path::PathBuf| {
+        Vars::build(root, pf(), sf(), BTreeMap::new(), "t", "Debug".into())
+            .unwrap()
+            .try_resolve("git_worktree_slug")
+            .unwrap()
+            .expect("git_worktree_slug should resolve")
+    };
+    assert_eq!(slug(main.clone()), "App");
+    assert_eq!(slug(main.join(".worktrees/feat-a/main")), "feat-a-main");
+    assert_eq!(slug(main.join(".worktrees/feat-b/main")), "feat-b-main");
+}
+
+#[test]
 fn git_unavailable_in_non_git_dir() {
     let tmp = tempfile::tempdir().unwrap();
     let v = Vars::build(

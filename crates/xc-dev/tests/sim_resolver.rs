@@ -264,6 +264,77 @@ fn integration_resolve_and_cache() {
     // _guard drops here, deleting the simulator.
 }
 
+/// A cached UDID belongs to the name it was resolved for: once the rendered
+/// name changes, the label re-resolves instead of reusing the old simulator.
+/// This applies to caches written before names were recorded as well.
+#[test]
+fn integration_renamed_sim_does_not_reuse_cached_udid() {
+    if !simctl_available() {
+        eprintln!("skipping: xcrun simctl not available");
+        return;
+    }
+    let (Some(runtime), Some(device)) = (first_ios_runtime(), find_iphone_device_type()) else {
+        eprintln!("skipping: no iOS runtime / iPhone device type");
+        return;
+    };
+    let suffix = {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .subsec_nanos();
+        format!("{nanos:08x}")
+    };
+    let old_name = format!("xc-dev-rename-old-{suffix}");
+    let new_name = format!("xc-dev-rename-new-{suffix}");
+
+    let tmp = tempdir().unwrap();
+    let xc_dev_dir = tmp.path().to_path_buf();
+
+    let old_udid =
+        match SimResolver::new(&xc_dev_dir).resolve("default", &old_name, &device, &runtime) {
+            Ok(u) => u,
+            Err(e) => {
+                eprintln!("skipping: resolve failed: {e}");
+                return;
+            }
+        };
+    let _old_guard = SimGuard {
+        udid: old_udid.clone(),
+    };
+
+    // Rewrite the cache in the legacy, name-less format.
+    std::fs::write(
+        xc_dev_dir.join(CACHE_FILE),
+        format!("[sim.default]\nid = \"{old_udid}\"\n"),
+    )
+    .unwrap();
+
+    let new_udid = SimResolver::new(&xc_dev_dir)
+        .resolve("default", &new_name, &device, &runtime)
+        .expect("resolve under the new name should succeed");
+    let _new_guard = SimGuard {
+        udid: new_udid.clone(),
+    };
+    assert_ne!(
+        old_udid, new_udid,
+        "a renamed sim must not reuse the cached UDID"
+    );
+
+    let cache_raw = std::fs::read_to_string(xc_dev_dir.join(CACHE_FILE)).unwrap();
+    let v: toml::Value = toml::from_str(&cache_raw).unwrap();
+    assert_eq!(v["sim"]["default"]["id"].as_str(), Some(new_udid.as_str()));
+    assert_eq!(
+        v["sim"]["default"]["name"].as_str(),
+        Some(new_name.as_str())
+    );
+
+    let again = SimResolver::new(&xc_dev_dir)
+        .resolve("default", &new_name, &device, &runtime)
+        .unwrap();
+    assert_eq!(again, new_udid, "same name should be a cache hit");
+}
+
 /// :get sim_id via assert_cmd round-trip using a tempdir with full TOML config.
 #[test]
 fn integration_get_sim_id_e2e() {

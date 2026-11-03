@@ -22,7 +22,7 @@ xc-dev is built for that workflow:
   worktree's local cache *and* any system DerivedData whose `WorkspacePath`
   belongs here. Tear down a feature branch without leaving 10GB behind.
 - **Worktree-tagged simulators (and their XCTest clones)** — each checkout can
-  own a sim (`{{product_name}}-{{git_worktree_name}}`). XCTest copies inherit
+  own a sim (`{{product_name}}-{{git_worktree_slug}}`). XCTest copies inherit
   that name (`Clone 2 of Pulse-feat-login`), so leftover clones stay
   attributable to the worktree instead of becoming anonymous gigabytes.
   `clean` can delete the parent sim too.

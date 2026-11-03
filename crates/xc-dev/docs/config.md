@@ -101,7 +101,9 @@ When `{{sim_id}}` is first used, xc-dev:
 3. Caches the resolved UDID in `.xc-dev/simulator.local.toml` (gitignored, per-machine).
 
 On subsequent calls the cached UDID is validated against `xcrun simctl list devices` and
-reused. Stale entries (e.g. after the simulator was deleted) are dropped and re-resolved.
+reused. Stale entries (e.g. after the simulator was deleted) are dropped and re-resolved,
+as are entries cached under a different rendered `name` — changing the name template moves
+the label to the newly named simulator.
 
 **Opt-in alternative: `:sim bake`** — for teams who prefer to check the resolved UDID into
 source control, run `xc-dev :sim bake` once. It resolves all `[sim.<label>]` entries that
@@ -109,7 +111,7 @@ don't have an `id` and writes `id = "<udid>"` directly into `simulator.toml` (in
 preserving comments and formatting). After baking, `simulator.local.toml` is no longer needed
 for those entries.
 
-`name` may contain template variables (e.g. `"{{git_worktree_name}}-sim"`); variables
+`name` may contain template variables (e.g. `"{{git_worktree_slug}}-sim"`); variables
 starting with `sim` are excluded to prevent recursion.
 
 ### Pinned UDID
@@ -143,7 +145,8 @@ Run `xcrun simctl list devicetypes` to see all valid device type names.
 Run `xcrun simctl list runtimes` to see installed runtimes.
 
 The per-machine UDID cache lives in `.xc-dev/simulator.local.toml` (gitignored). Its format
-mirrors `simulator.toml` but only contains the `id` field per entry:
+mirrors `simulator.toml` but only contains the `id` and the rendered `name` it was resolved
+for. An entry without `name` (written by older versions) is re-resolved once:
 
 ```toml
 # .xc-dev/simulator.local.toml
@@ -152,9 +155,11 @@ mirrors `simulator.toml` but only contains the `id` field per entry:
 
 [sim.default]
 id = "ABC-DEF-..."
+name = "MyApp-feat-login"
 
 [sim.ipad]
 id = "GHI-JKL-..."
+name = "MyApp-feat-login-ipad"
 ```
 
 ## `tasks.toml`
